@@ -67,7 +67,7 @@ export default function AssessedEntitiesPage() {
           <div className="relative flex-1 max-w-md"><Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-kpmg-placeholder" /><input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-11" /></div>
           <div className="flex items-center gap-2">
             <button onClick={async () => {
-              const r = await fetch("/api/assessed-entities/export-excel", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+              const r = await fetch("/api/bulk-entities/export-excel", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
               const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "assessed_entities.xlsx"; a.click(); URL.revokeObjectURL(u);
             }} className="kpmg-btn-secondary flex items-center gap-2 text-sm"><Download className="w-4 h-4" /> Export</button>
             <label className="kpmg-btn-secondary flex items-center gap-2 text-sm cursor-pointer">
@@ -76,7 +76,7 @@ export default function AssessedEntitiesPage() {
                 const file = e.target.files?.[0]; if (!file) return;
                 setImportFile(file);
                 const fd = new FormData(); fd.append("file", file);
-                const r = await fetch("/api/assessed-entities/import-excel?preview=true", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+                const r = await fetch("/api/bulk-entities/import-excel?preview=true", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
                 const p = await r.json();
                 if (r.ok) { setImportPreview(p); } else { toast(p.detail || "Preview failed", "error"); }
                 e.target.value = "";
@@ -164,7 +164,7 @@ export default function AssessedEntitiesPage() {
         onConfirm={async () => {
           if (!importFile) return; setImporting(true);
           const fd = new FormData(); fd.append("file", importFile);
-          const r = await fetch("/api/assessed-entities/import-excel", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+          const r = await fetch("/api/bulk-entities/import-excel", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
           const d = await r.json(); setImporting(false); setImportPreview(null); setImportFile(null);
           if (r.ok) { toast(`Imported ${d.imported} entities (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["assessed-entities"] }); } else { toast(d.detail || "Import failed", "error"); }
         }} />

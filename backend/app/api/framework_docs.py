@@ -423,7 +423,7 @@ async def import_rules_excel(fw_id: uuid.UUID, file: UploadFile = File(...), pre
 
 from app.models.assessment_engine import AssessedEntity
 
-@router.get("/api/assessed-entities/export-excel")
+@router.get("/api/bulk-entities/export-excel")
 async def export_entities_excel(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     from app.models.regulatory_entity import RegulatoryEntity
     from sqlalchemy.orm import selectinload
@@ -444,7 +444,7 @@ async def export_entities_excel(db: AsyncSession = Depends(get_db), current_user
         headers={"Content-Disposition": "attachment; filename=assessed_entities.xlsx"})
 
 
-@router.post("/api/assessed-entities/import-excel")
+@router.post("/api/bulk-entities/import-excel")
 async def import_entities_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     from app.models.regulatory_entity import RegulatoryEntity
     content = await file.read()
@@ -484,7 +484,7 @@ async def import_entities_excel(file: UploadFile = File(...), preview: bool = Fa
 from app.models.user import User as UserModel
 from app.core.security import get_password_hash
 
-@router.get("/api/users/export-excel")
+@router.get("/api/bulk-users/export-excel")
 async def export_users_excel(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     users = (await db.execute(select(UserModel).order_by(UserModel.name))).scalars().all()
     wb = Workbook()
@@ -499,7 +499,7 @@ async def export_users_excel(db: AsyncSession = Depends(get_db), current_user: U
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=users.xlsx"})
 
-@router.post("/api/users/import-excel")
+@router.post("/api/bulk-users/import-excel")
 async def import_users_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     content = await file.read()
     wb = load_workbook(BytesIO(content))
@@ -531,7 +531,7 @@ async def import_users_excel(file: UploadFile = File(...), preview: bool = False
 
 from app.models.regulatory_entity import RegulatoryEntity
 
-@router.get("/api/regulatory-entities/export-excel")
+@router.get("/api/bulk-regulatory-entities/export-excel")
 async def export_reg_entities_excel(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     entities = (await db.execute(select(RegulatoryEntity).order_by(RegulatoryEntity.name))).scalars().all()
     wb = Workbook()
@@ -546,7 +546,7 @@ async def export_reg_entities_excel(db: AsyncSession = Depends(get_db), current_
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=regulatory_entities.xlsx"})
 
-@router.post("/api/regulatory-entities/import-excel")
+@router.post("/api/bulk-regulatory-entities/import-excel")
 async def import_reg_entities_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     content = await file.read()
     wb = load_workbook(BytesIO(content))
@@ -576,7 +576,7 @@ async def import_reg_entities_excel(file: UploadFile = File(...), preview: bool 
 from app.models.assessment_cycle_config import AssessmentCycleConfig
 from app.models.compliance_framework import ComplianceFramework
 
-@router.get("/api/assessment-cycle-configs/export-excel")
+@router.get("/api/bulk-cycles/export-excel")
 async def export_cycles_excel(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     from sqlalchemy.orm import selectinload
     cycles = (await db.execute(select(AssessmentCycleConfig).options(selectinload(AssessmentCycleConfig.framework)).order_by(AssessmentCycleConfig.cycle_name))).scalars().all()
@@ -595,7 +595,7 @@ async def export_cycles_excel(db: AsyncSession = Depends(get_db), current_user: 
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=assessment_cycles.xlsx"})
 
-@router.post("/api/assessment-cycle-configs/import-excel")
+@router.post("/api/bulk-cycles/import-excel")
 async def import_cycles_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     from datetime import date as date_type
     content = await file.read()
@@ -634,7 +634,7 @@ async def import_cycles_excel(file: UploadFile = File(...), preview: bool = Fals
 
 # ============ FRAMEWORKS: EXPORT & IMPORT ============
 
-@router.get("/api/frameworks/export-excel")
+@router.get("/api/bulk-frameworks/export-excel")
 async def export_frameworks_excel(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     from sqlalchemy.orm import selectinload
     fws = (await db.execute(select(ComplianceFramework).options(selectinload(ComplianceFramework.entity)).order_by(ComplianceFramework.name))).scalars().all()
@@ -651,7 +651,7 @@ async def export_frameworks_excel(db: AsyncSession = Depends(get_db), current_us
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=frameworks.xlsx"})
 
-@router.post("/api/frameworks/import-excel")
+@router.post("/api/bulk-frameworks/import-excel")
 async def import_frameworks_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     content = await file.read()
     wb = load_workbook(BytesIO(content))

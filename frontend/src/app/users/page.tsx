@@ -60,8 +60,8 @@ export default function UsersPage() {
         <div className="flex items-center justify-between mb-6">
           <p className="text-sm text-kpmg-gray font-body">Manage platform users and their roles.</p>
           <div className="flex items-center gap-2">
-            <button onClick={async () => { const r = await fetch("/api/users/export-excel", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "users.xlsx"; a.click(); URL.revokeObjectURL(u); }} className="kpmg-btn-secondary flex items-center gap-2 text-sm"><Download className="w-4 h-4" /> Export</button>
-            <label className="kpmg-btn-secondary flex items-center gap-2 text-sm cursor-pointer"><Upload className="w-4 h-4" /> Import<input type="file" accept=".xlsx" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; setImportFile(file); const fd = new FormData(); fd.append("file", file); const r = await fetch("/api/users/import-excel?preview=true", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd }); const p = await r.json(); if (r.ok) setImportPreview(p); e.target.value = ""; }} /></label>
+            <button onClick={async () => { const r = await fetch("/api/bulk-users/export-excel", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "users.xlsx"; a.click(); URL.revokeObjectURL(u); }} className="kpmg-btn-secondary flex items-center gap-2 text-sm"><Download className="w-4 h-4" /> Export</button>
+            <label className="kpmg-btn-secondary flex items-center gap-2 text-sm cursor-pointer"><Upload className="w-4 h-4" /> Import<input type="file" accept=".xlsx" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; setImportFile(file); const fd = new FormData(); fd.append("file", file); const r = await fetch("/api/bulk-users/import-excel?preview=true", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd }); const p = await r.json(); if (r.ok) setImportPreview(p); e.target.value = ""; }} /></label>
           <button
             onClick={() => setShowCreate(!showCreate)}
             className={showCreate ? "kpmg-btn-secondary flex items-center gap-2" : "kpmg-btn-primary flex items-center gap-2"}
@@ -192,7 +192,7 @@ export default function UsersPage() {
       <ImportPreviewModal open={!!importPreview} preview={importPreview} loading={importing} itemLabel="users" nameKey="email"
         onClose={() => { setImportPreview(null); setImportFile(null); }}
         onConfirm={async () => { if (!importFile) return; setImporting(true); const fd = new FormData(); fd.append("file", importFile);
-          const r = await fetch("/api/users/import-excel", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+          const r = await fetch("/api/bulk-users/import-excel", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
           const d = await r.json(); setImporting(false); setImportPreview(null); setImportFile(null);
           if (r.ok) { queryClient.invalidateQueries({ queryKey: ["users"] }); }
         }} />
