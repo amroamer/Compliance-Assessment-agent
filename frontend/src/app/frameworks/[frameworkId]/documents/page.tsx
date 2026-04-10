@@ -71,6 +71,7 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
     setUploading(false);
     queryClient.invalidateQueries({ queryKey: ["fw-docs", frameworkId] });
     toast("Upload complete", "success");
+    toast("Upload complete", "success");
   };
 
   return (
