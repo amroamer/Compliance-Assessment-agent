@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { EntityDetailHeader } from "@/components/entities/EntityDetailHeader";
 import { EntityTabs } from "@/components/entities/EntityTabs";
@@ -130,7 +130,7 @@ export default function EntityEvidencePage() {
                       <td className="px-5 py-4 text-center text-xs text-kpmg-placeholder font-mono">{formatFileSize(ev.file_size)}</td>
                       <td className="px-5 py-4 text-xs text-kpmg-placeholder">{new Date(ev.uploaded_at).toLocaleDateString()}</td>
                       <td className="px-5 py-4 text-right">
-                        <button onClick={async (e) => { e.stopPropagation(); const r = await fetch(`/api/assessments/evidence/${ev.id}/download`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = ev.file_name; a.click(); URL.revokeObjectURL(u); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition inline-flex" title="Download">
+                        <button onClick={async (e) => { e.stopPropagation(); const r = await fetch(`${API_BASE}/assessments/evidence/${ev.id}/download`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = ev.file_name; a.click(); URL.revokeObjectURL(u); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition inline-flex" title="Download">
                           <Download className="w-4 h-4" />
                         </button>
                       </td>

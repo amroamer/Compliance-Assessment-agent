@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { FrameworkTabs } from "@/components/frameworks/FrameworkTabs";
 import { useToast } from "@/components/ui/Toast";
@@ -33,12 +33,12 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
       const auth = { Authorization: `Bearer ${localStorage.getItem("token")}` };
       if (["pdf", "png", "jpg", "jpeg", "gif"].includes(ext)) {
         // Binary files: use blob URL
-        const r = await fetch(`/api/frameworks/documents/${docId}/download`, { headers: auth });
+        const r = await fetch(`${API_BASE}/frameworks/documents/${docId}/download`, { headers: auth });
         const blob = await r.blob();
         setViewingDoc({ url: URL.createObjectURL(blob), name: fileName, type: ext, html: null });
       } else {
         // Word/Excel: get HTML preview
-        const r = await fetch(`/api/frameworks/documents/${docId}/preview`, { headers: auth });
+        const r = await fetch(`${API_BASE}/frameworks/documents/${docId}/preview`, { headers: auth });
         const html = await r.text();
         setViewingDoc({ url: "", name: fileName, type: ext, html });
       }
@@ -61,7 +61,7 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
       const formData = new FormData();
       formData.append("file", file);
       try {
-        const resp = await fetch(`/api/frameworks/${frameworkId}/documents`, {
+        const resp = await fetch(`${API_BASE}/frameworks/${frameworkId}/documents`, {
           method: "POST",
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
           body: formData,
@@ -130,7 +130,7 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
                             <Eye className="w-4 h-4" />
                           </button>
                           <button onClick={async () => {
-                            const r = await fetch(`/api/frameworks/documents/${d.id}/download`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+                            const r = await fetch(`${API_BASE}/frameworks/documents/${d.id}/download`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
                             const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = d.file_name; a.click(); URL.revokeObjectURL(u);
                           }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Download">
                             <Download className="w-4 h-4" />

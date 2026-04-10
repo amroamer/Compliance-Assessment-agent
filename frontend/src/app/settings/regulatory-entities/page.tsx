@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -154,8 +154,8 @@ export default function RegulatoryEntitiesPage() {
               onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-11" />
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={async () => { const r = await fetch("/api/bulk-regulatory-entities/export-excel", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "regulatory_entities.xlsx"; a.click(); URL.revokeObjectURL(u); }} className="kpmg-btn-secondary flex items-center gap-2 text-sm"><Download className="w-4 h-4" /> Export</button>
-            <label className="kpmg-btn-secondary flex items-center gap-2 text-sm cursor-pointer"><Upload className="w-4 h-4" /> Import<input type="file" accept=".xlsx" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; setImportFile(file); const fd = new FormData(); fd.append("file", file); const r = await fetch("/api/bulk-regulatory-entities/import-excel?preview=true", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd }); const p = await r.json(); if (r.ok) setImportPreview(p); e.target.value = ""; }} /></label>
+            <button onClick={async () => { const r = await fetch(`${API_BASE}/bulk-regulatory-entities/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "regulatory_entities.xlsx"; a.click(); URL.revokeObjectURL(u); }} className="kpmg-btn-secondary flex items-center gap-2 text-sm"><Download className="w-4 h-4" /> Export</button>
+            <label className="kpmg-btn-secondary flex items-center gap-2 text-sm cursor-pointer"><Upload className="w-4 h-4" /> Import<input type="file" accept=".xlsx" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; setImportFile(file); const fd = new FormData(); fd.append("file", file); const r = await fetch(`${API_BASE}/bulk-regulatory-entities/import-excel?preview=true`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd }); const p = await r.json(); if (r.ok) setImportPreview(p); e.target.value = ""; }} /></label>
             <button onClick={openCreate} className="kpmg-btn-primary flex items-center gap-2">
               <Plus className="w-4 h-4" /> Add Entity
             </button>
@@ -373,7 +373,7 @@ export default function RegulatoryEntitiesPage() {
       <ImportPreviewModal open={!!importPreview} preview={importPreview} loading={importing} itemLabel="entities" nameKey="abbreviation"
         onClose={() => { setImportPreview(null); setImportFile(null); }}
         onConfirm={async () => { if (!importFile) return; setImporting(true); const fd = new FormData(); fd.append("file", importFile);
-          const r = await fetch("/api/bulk-regulatory-entities/import-excel", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+          const r = await fetch(`${API_BASE}/bulk-regulatory-entities/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
           const d = await r.json(); setImporting(false); setImportPreview(null); setImportFile(null);
           if (r.ok) { queryClient.invalidateQueries({ queryKey: ["reg-entities"] }); toast(`Imported ${d.imported} entities`, "success"); }
         }} />

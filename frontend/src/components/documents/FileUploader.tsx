@@ -27,7 +27,7 @@ export function FileUploader({ productId, domainId, subRequirementId, onUploaded
       if (subRequirementId) formData.append("sub_requirement_id", subRequirementId);
 
       const token = localStorage.getItem("token");
-      const res = await fetch(`/api/products/${productId}/assessments/${domainId}/documents`, {
+      const res = await fetch(`${API_BASE}/products/${productId}/assessments/${domainId}/documents`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,

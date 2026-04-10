@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { FrameworkTabs } from "@/components/frameworks/FrameworkTabs";
 import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
@@ -68,7 +68,7 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
           </div>
           <div className="flex items-center gap-2">
             <button onClick={async () => {
-              const r = await fetch(`/api/frameworks/${frameworkId}/bulk-scales/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+              const r = await fetch(`${API_BASE}/frameworks/${frameworkId}/bulk-scales/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
               const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "scales.xlsx"; a.click(); URL.revokeObjectURL(u);
             }} className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"><Download className="w-3.5 h-3.5" /> Export Excel</button>
             <label className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5 cursor-pointer">
@@ -77,7 +77,7 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
                 const file = e.target.files?.[0]; if (!file) return;
                 const fd = new FormData(); fd.append("file", file);
                 const auth = { Authorization: `Bearer ${localStorage.getItem("token")}` };
-                const r = await fetch(`/api/frameworks/${frameworkId}/bulk-scales/import-excel?preview=true`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+                const r = await fetch(`${API_BASE}/frameworks/${frameworkId}/bulk-scales/import-excel?preview=true`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
                 const p = await r.json();
                 if (r.ok) { setImportFile(file); setImportPreview(p); } else { toast(p.detail || "Preview failed", "error"); }
 
@@ -218,7 +218,7 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
         onConfirm={async () => {
           if (!importFile) return; setImporting(true);
           const fd = new FormData(); fd.append("file", importFile);
-          const r = await fetch(`/api/frameworks/${frameworkId}/bulk-scales/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+          const r = await fetch(`${API_BASE}/frameworks/${frameworkId}/bulk-scales/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
           const d = await r.json(); setImporting(false); setImportPreview(null); setImportFile(null);
           if (r.ok) { toast(`Imported ${d.imported_scales} scales (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["scales"] }); } else { toast(d.detail || "Import failed", "error"); }
         }} />

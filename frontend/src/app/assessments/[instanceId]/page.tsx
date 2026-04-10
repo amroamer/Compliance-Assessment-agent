@@ -3,7 +3,7 @@
 import { use, useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import { useLocale } from "@/providers/LocaleProvider";
@@ -108,7 +108,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
       const formData = new FormData();
       formData.append("file", file);
       try {
-        await fetch(`/api/assessments/${instanceId}/responses/${selectedNodeId}/evidence${productParam}`, {
+        await fetch(`${API_BASE}/assessments/${instanceId}/responses/${selectedNodeId}/evidence${productParam}`, {
           method: "POST",
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
           body: formData,
@@ -345,7 +345,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
               <ArrowLeft className="w-3 h-3" /> Back
             </button>
             <button onClick={async () => {
-              const res = await fetch(`/api/assessments/${instanceId}/export/report`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+              const res = await fetch(`${API_BASE}/assessments/${instanceId}/export/report`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
               const blob = await res.blob();
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a"); a.href = url; a.download = "assessment_report.xlsx"; a.click(); URL.revokeObjectURL(url);

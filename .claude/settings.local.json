@@ -72,7 +72,11 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:4200)",
       "Bash(tee C:/tmp/testdoc.pdf)",
-      "Bash(mkdir -p /tmp)"
+      "Bash(mkdir -p /tmp)",
+      "Bash(grep -rn 'fetch\\(`/api/' frontend/src/)",
+      "Bash(grep -rln 'fetch\\(`/api/' frontend/src/)",
+      "Bash(python3)",
+      "Bash(grep -rn 'fetch\\(`\\\\${API_BASE}[^`]*\",' frontend/src/)"
     ]
   }
 }

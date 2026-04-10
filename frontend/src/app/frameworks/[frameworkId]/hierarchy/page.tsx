@@ -3,7 +3,7 @@
 import { use, useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import { FrameworkTabs } from "@/components/frameworks/FrameworkTabs";
@@ -273,7 +273,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
               Show inactive
             </label>
             <button onClick={async () => {
-              const r = await fetch(`/api/frameworks/${frameworkId}/hierarchy/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+              const r = await fetch(`${API_BASE}/frameworks/${frameworkId}/hierarchy/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
               const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "hierarchy.xlsx"; a.click(); URL.revokeObjectURL(u);
             }} className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5">
               <Download className="w-3.5 h-3.5" /> Export Excel
@@ -284,7 +284,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
                 const file = e.target.files?.[0]; if (!file) return;
                 setImportFile(file);
                 const fd = new FormData(); fd.append("file", file);
-                const r = await fetch(`/api/frameworks/${frameworkId}/hierarchy/import-excel?preview=true`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+                const r = await fetch(`${API_BASE}/frameworks/${frameworkId}/hierarchy/import-excel?preview=true`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
                 const p = await r.json();
                 if (r.ok) { setImportPreview(p); } else { toast(p.detail || "Preview failed", "error"); }
                 e.target.value = "";
@@ -431,7 +431,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
         onConfirm={async () => {
           if (!importFile) return; setImporting(true);
           const fd = new FormData(); fd.append("file", importFile);
-          const r = await fetch(`/api/frameworks/${frameworkId}/hierarchy/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+          const r = await fetch(`${API_BASE}/frameworks/${frameworkId}/hierarchy/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
           const d = await r.json(); setImporting(false); setImportPreview(null); setImportFile(null);
           if (r.ok) { toast(`Imported ${d.imported} nodes (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["nodes"] }); } else { toast(d.detail || "Import failed", "error"); }
         }} />
