@@ -14,6 +14,9 @@ import { useConfirm } from "@/components/ui/ConfirmModal";
 export default function FormsPage({ params }: { params: Promise<{ frameworkId: string }> }) {
   const { frameworkId } = use(params);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [importPreview, setImportPreview] = useState<any>(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { confirm } = useConfirm();
