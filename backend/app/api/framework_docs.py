@@ -72,12 +72,12 @@ async def delete_document(doc_id: uuid.UUID, db: AsyncSession = Depends(get_db),
 
 # ============ HIERARCHY: DELETE ALL, EXPORT EXCEL, IMPORT EXCEL ============
 
-@router.delete("/api/frameworks/{fw_id}/nodes/delete-all", status_code=204)
+@router.delete("/api/frameworks/{fw_id}/hierarchy/delete-all", status_code=204)
 async def delete_all_nodes(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     await db.execute(delete(FrameworkNode).where(FrameworkNode.framework_id == fw_id))
     await db.flush()
 
-@router.get("/api/frameworks/{fw_id}/nodes/export-excel")
+@router.get("/api/frameworks/{fw_id}/hierarchy/export-excel")
 async def export_nodes_excel(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     nodes = (await db.execute(select(FrameworkNode).where(FrameworkNode.framework_id == fw_id).order_by(FrameworkNode.sort_order))).scalars().all()
     wb = Workbook()
@@ -94,7 +94,7 @@ async def export_nodes_excel(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=hierarchy.xlsx"})
 
-@router.post("/api/frameworks/{fw_id}/nodes/import-excel")
+@router.post("/api/frameworks/{fw_id}/hierarchy/import-excel")
 async def import_nodes_excel(fw_id: uuid.UUID, file: UploadFile = File(...), db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     content = await file.read()
     wb = load_workbook(BytesIO(content))

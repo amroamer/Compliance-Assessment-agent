@@ -267,7 +267,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
               Show inactive
             </label>
             <button onClick={async () => {
-              const r = await fetch(`/api/frameworks/${frameworkId}/nodes/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+              const r = await fetch(`/api/frameworks/${frameworkId}/hierarchy/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
               const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "hierarchy.xlsx"; a.click(); URL.revokeObjectURL(u);
             }} className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5">
               <Download className="w-3.5 h-3.5" /> Export Excel
@@ -277,13 +277,13 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
               <input type="file" accept=".xlsx" className="hidden" onChange={async (e) => {
                 const file = e.target.files?.[0]; if (!file) return;
                 const fd = new FormData(); fd.append("file", file);
-                const r = await fetch(`/api/frameworks/${frameworkId}/nodes/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+                const r = await fetch(`/api/frameworks/${frameworkId}/hierarchy/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
                 const d = await r.json(); if (r.ok) { toast(`Imported ${d.imported} nodes`, "success"); queryClient.invalidateQueries({ queryKey: ["nodes"] }); } else { toast(d.detail || "Import failed", "error"); }
                 e.target.value = "";
               }} />
             </label>
             <button onClick={async () => { if (!confirm("Delete ALL hierarchy nodes? This cannot be undone.")) return;
-              try { await api.delete(`/frameworks/${frameworkId}/nodes/delete-all`); queryClient.invalidateQueries({ queryKey: ["nodes"] }); toast("All nodes deleted", "info"); } catch (e: any) { toast(e.message, "error"); }
+              try { await api.delete(`/frameworks/${frameworkId}/hierarchy/delete-all`); queryClient.invalidateQueries({ queryKey: ["nodes"] }); toast("All nodes deleted", "info"); } catch (e: any) { toast(e.message, "error"); }
             }} className="kpmg-btn-danger text-xs px-3 py-2 flex items-center gap-1.5">
               <Trash2 className="w-3.5 h-3.5" /> Delete All
             </button>
