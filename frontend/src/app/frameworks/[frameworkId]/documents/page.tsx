@@ -61,11 +61,12 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
       const formData = new FormData();
       formData.append("file", file);
       try {
-        await fetch(`/api/frameworks/${frameworkId}/documents`, {
+        const resp = await fetch(`/api/frameworks/${frameworkId}/documents`, {
           method: "POST",
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
           body: formData,
-        }).then(async (r) => { if (!r.ok) { const d = await r.json(); throw new Error(d.detail || "Upload failed"); } });
+        });
+        if (!resp.ok) { const d = await resp.json().catch(() => ({})); throw new Error(d.detail || `Upload failed (${resp.status})`); }
       } catch (e: any) { toast(e.message, "error"); }
     }
     setUploading(false);
