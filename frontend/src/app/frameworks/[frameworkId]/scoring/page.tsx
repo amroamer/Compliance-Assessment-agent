@@ -8,11 +8,13 @@ import { FrameworkTabs } from "@/components/frameworks/FrameworkTabs";
 import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
 import { useToast } from "@/components/ui/Toast";
 import { Plus, ArrowRight, X, Save, Edit, Trash2, Download, Upload } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 export default function ScoringPage({ params }: { params: Promise<{ frameworkId: string }> }) {
   const { frameworkId } = use(params);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [modalOpen, setModalOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<any>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -85,7 +87,7 @@ export default function ScoringPage({ params }: { params: Promise<{ frameworkId:
                 e.target.value = "";
               }} />
             </label>
-            <button onClick={async () => { if (!confirm("Delete ALL scoring rules? This cannot be undone.")) return;
+            <button onClick={async () => { if (!await confirm({ title: "Delete All", message: "Delete ALL scoring rules? This action is permanent and cannot be undone.", variant: "danger", confirmLabel: "Delete All" })) return;
               try { await api.delete(`/frameworks/${frameworkId}/bulk-scoring/delete-all`); queryClient.invalidateQueries({ queryKey: ["agg-rules"] }); toast("All rules deleted", "info"); } catch (e: any) { toast(e.message, "error"); }
             }} className="kpmg-btn-danger text-xs px-3 py-2 flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" /> Delete All</button>
             <button onClick={openCreate} className="kpmg-btn-primary text-xs px-4 py-2 flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> New Rule</button>
@@ -107,10 +109,10 @@ export default function ScoringPage({ params }: { params: Promise<{ frameworkId:
                   {r.round_to != null && <span className="text-[10px] text-kpmg-placeholder">round: {r.round_to}</span>}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={(e) => { e.stopPropagation(); openEdit(r); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Edit">
+                  <button onClick={async (e) => { e.stopPropagation(); openEdit(r); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Edit">
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); if (confirm("Delete this rule?")) deleteMutation.mutate(r.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Delete">
+                  <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Delete Rule", message: "Delete this scoring rule?", variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(r.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Delete">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -122,7 +124,7 @@ export default function ScoringPage({ params }: { params: Promise<{ frameworkId:
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-card shadow-2xl w-full max-w-md animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-md animate-fade-in-up" onClick={async (e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border">
               <h3 className="text-lg font-heading font-bold text-kpmg-navy">{editingId ? "Edit Rule" : "New Aggregation Rule"}</h3>
               <button onClick={() => setModalOpen(false)} className="p-1 text-kpmg-placeholder hover:text-kpmg-gray"><X className="w-5 h-5" /></button>

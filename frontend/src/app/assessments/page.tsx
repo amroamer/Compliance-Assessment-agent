@@ -8,6 +8,7 @@ import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import { Plus, ClipboardCheck, X, Save, Trash2 } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 const STATUS_STYLES: Record<string, string> = {
   not_started: "kpmg-status-draft", in_progress: "kpmg-status-in-progress", submitted: "kpmg-status-in-progress",
@@ -18,6 +19,7 @@ export default function AssessmentsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [fwFilter, setFwFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [newForm, setNewForm] = useState({ cycle_id: "", assessed_entity_id: "" });
@@ -78,7 +80,7 @@ export default function AssessmentsPage() {
                   return (
                     <tr key={a.id} className={`border-b border-kpmg-border hover:bg-kpmg-hover-bg transition-colors cursor-pointer ${idx % 2 === 1 ? "bg-kpmg-light-gray" : "bg-white"}`} onClick={() => router.push(`/assessments/${a.id}`)}>
                       <td className="px-5 py-4">
-                        <Link href={`/entities/${a.assessed_entity?.id}/overview`} onClick={(e) => e.stopPropagation()} className="text-sm font-heading font-semibold text-kpmg-navy hover:text-kpmg-light transition-colors">{a.assessed_entity?.name}</Link>
+                        <Link href={`/entities/${a.assessed_entity?.id}/overview`} onClick={async (e) => e.stopPropagation()} className="text-sm font-heading font-semibold text-kpmg-navy hover:text-kpmg-light transition-colors">{a.assessed_entity?.name}</Link>
                         {a.ai_product ? (
                           <p className="text-xs text-kpmg-light font-body">&rarr; {a.ai_product.name} <span className="kpmg-status-draft text-[9px] ml-1">{a.ai_product.product_type}</span></p>
                         ) : (
@@ -97,8 +99,8 @@ export default function AssessmentsPage() {
                       <td className="px-5 py-4 text-center"><span className={STATUS_STYLES[a.status] || "kpmg-status-draft"}>{a.status.replace("_", " ")}</span></td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button className="kpmg-btn-ghost text-xs" onClick={(e) => { e.stopPropagation(); router.push(`/assessments/${a.id}`); }}>Open</button>
-                          <button onClick={(e) => { e.stopPropagation(); if (confirm(`Delete this ${a.framework?.abbreviation} assessment for "${a.assessed_entity?.name}"? This will permanently remove all responses and scores.`)) deleteMutation.mutate(a.id); }}
+                          <button className="kpmg-btn-ghost text-xs" onClick={async (e) => { e.stopPropagation(); router.push(`/assessments/${a.id}`); }}>Open</button>
+                          <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Delete Assessment", message: `Delete this ${a.framework?.abbreviation} assessment? All responses and scores will be permanently removed.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(a.id); }}
                             className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Delete">
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -115,7 +117,7 @@ export default function AssessmentsPage() {
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-card shadow-2xl w-full max-w-md animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-md animate-fade-in-up" onClick={async (e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border">
               <h3 className="text-lg font-heading font-bold text-kpmg-navy">New Assessment</h3>
               <button onClick={() => setModalOpen(false)} className="p-1 text-kpmg-placeholder"><X className="w-5 h-5" /></button>

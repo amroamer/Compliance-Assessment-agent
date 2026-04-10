@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import { Plus, Edit, ArrowLeft, Trash2, Cpu, Search, X, Save } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 interface AiProduct { id: string; name: string; name_ar: string | null; description: string | null; product_type: string | null; risk_level: string | null; deployment_status: string; department: string | null; vendor: string | null; end_users?: string[]; status: string }
 interface FormData { name: string; name_ar: string; description: string; description_ar: string; product_type: string; risk_level: string; deployment_status: string; department: string; vendor: string; technology_stack: string; data_types_processed: string; number_of_users: string; end_users: string[]; go_live_date: string }
@@ -22,6 +23,7 @@ export default function AiProductsPage({ params }: { params: Promise<{ entityId:
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(EMPTY);
@@ -88,8 +90,8 @@ export default function AiProductsPage({ params }: { params: Promise<{ entityId:
                     <td className="px-5 py-4 text-sm text-kpmg-gray font-body">{p.department || "—"}</td>
                     <td className="px-5 py-4 text-center"><span className={p.status === "Active" ? "kpmg-status-complete" : "kpmg-status-not-started"}>{p.status}</span></td>
                     <td className="px-5 py-4"><div className="flex items-center justify-end gap-1">
-                      <button onClick={(e) => { e.stopPropagation(); openEdit(p); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition"><Edit className="w-4 h-4" /></button>
-                      <button onClick={(e) => { e.stopPropagation(); if (confirm(`Delete "${p.name}"? This will also remove all assessment responses for this product.`)) deleteMutation.mutate(p.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={async (e) => { e.stopPropagation(); openEdit(p); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition"><Edit className="w-4 h-4" /></button>
+                      <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Delete", message: `Delete "${${p.name}}"? This will also remove all assessment responses for this product.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(p.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition"><Trash2 className="w-4 h-4" /></button>
                     </div></td>
                   </tr>
                 ))}
@@ -101,7 +103,7 @@ export default function AiProductsPage({ params }: { params: Promise<{ entityId:
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-card shadow-2xl w-full max-w-2xl animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-2xl animate-fade-in-up" onClick={async (e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border">
               <h3 className="text-lg font-heading font-bold text-kpmg-navy">{editingId ? "Edit Product" : "Add AI Product"}</h3>
               <button onClick={() => setModalOpen(false)} className="p-1 text-kpmg-placeholder"><X className="w-5 h-5" /></button>

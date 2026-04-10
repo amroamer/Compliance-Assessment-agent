@@ -12,6 +12,7 @@ import {
   ArrowLeft, Plus, Edit, Trash2, EyeOff, ChevronRight, ChevronDown,
   GripVertical, Download, Upload, X, Save, BookOpen,
 } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 interface NodeType { id: string; name: string; label: string; color: string | null; is_assessable_default: boolean }
 interface FrameworkNode {
@@ -40,6 +41,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [showInactive, setShowInactive] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
@@ -288,7 +290,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
                 e.target.value = "";
               }} />
             </label>
-            <button onClick={async () => { if (!confirm("Delete ALL hierarchy nodes? This cannot be undone.")) return;
+            <button onClick={async () => { if (!await confirm({ title: "Delete All", message: "Delete ALL hierarchy nodes? This action is permanent and cannot be undone.", variant: "danger", confirmLabel: "Delete All" })) return;
               try { await api.delete(`/frameworks/${frameworkId}/hierarchy/delete-all`); queryClient.invalidateQueries({ queryKey: ["nodes"] }); toast("All nodes deleted", "info"); } catch (e: any) { toast(e.message, "error"); }
             }} className="kpmg-btn-danger text-xs px-3 py-2 flex items-center gap-1.5">
               <Trash2 className="w-3.5 h-3.5" /> Delete All
@@ -318,7 +320,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
       {/* Add/Edit Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-card shadow-2xl w-full max-w-3xl animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-3xl animate-fade-in-up" onClick={async (e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border">
               <div>
                 <h3 className="text-lg font-heading font-bold text-kpmg-navy">

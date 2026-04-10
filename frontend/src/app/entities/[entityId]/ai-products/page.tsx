@@ -10,6 +10,7 @@ import { EntityTabs } from "@/components/entities/EntityTabs";
 import { AssessedEntityDetail } from "@/types";
 import { useToast } from "@/components/ui/Toast";
 import { Plus, Cpu, Edit, Trash2, X, Save, ChevronDown, ChevronRight, ClipboardCheck, RefreshCw } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 const RISK_COLORS: Record<string, string> = { Low: "kpmg-status-complete", Medium: "kpmg-status-in-progress", High: "kpmg-status-not-started", Critical: "kpmg-status-not-started" };
 const DEPLOY_STYLES: Record<string, string> = { "In Development": "kpmg-status-draft", Pilot: "kpmg-status-in-progress", Production: "kpmg-status-complete", Retired: "kpmg-status-not-started" };
@@ -29,6 +30,7 @@ export default function EntityAiProductsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductForm>(EMPTY);
@@ -133,7 +135,7 @@ export default function EntityAiProductsPage() {
                     <>
                       <tr key={p.id} className={`border-b border-kpmg-border hover:bg-kpmg-hover-bg transition-colors cursor-pointer ${idx % 2 === 1 ? "bg-kpmg-light-gray" : "bg-white"}`} onClick={() => setExpandedId(expanded ? null : p.id)}>
                         <td className="px-2 py-4">
-                          <button onClick={(e) => { e.stopPropagation(); setExpandedId(expanded ? null : p.id); }} className="p-1 text-kpmg-placeholder hover:text-kpmg-navy">
+                          <button onClick={async (e) => { e.stopPropagation(); setExpandedId(expanded ? null : p.id); }} className="p-1 text-kpmg-placeholder hover:text-kpmg-navy">
                             {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                           </button>
                         </td>
@@ -144,8 +146,8 @@ export default function EntityAiProductsPage() {
                         <td className="px-5 py-4 text-sm text-kpmg-gray">{p.department || "—"}</td>
                         <td className="px-5 py-4 text-center"><span className={p.status === "Active" ? "kpmg-status-complete" : "kpmg-status-not-started"}>{p.status}</span></td>
                         <td className="px-5 py-4"><div className="flex items-center justify-end gap-1">
-                          <button onClick={(e) => { e.stopPropagation(); openEdit(p); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Edit"><Edit className="w-4 h-4" /></button>
-                          <button onClick={(e) => { e.stopPropagation(); if (confirm(`Delete "${p.name}"? This will also remove all assessment responses for this product.`)) deleteMutation.mutate(p.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                          <button onClick={async (e) => { e.stopPropagation(); openEdit(p); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Edit"><Edit className="w-4 h-4" /></button>
+                          <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Delete", message: `Delete "${${p.name}}"? This will also remove all assessment responses for this product.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(p.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Delete"><Trash2 className="w-4 h-4" /></button>
                         </div></td>
                       </tr>
                       {expanded && (
@@ -188,7 +190,7 @@ export default function EntityAiProductsPage() {
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-card shadow-2xl w-full max-w-xl animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-xl animate-fade-in-up" onClick={async (e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border">
               <h3 className="text-lg font-heading font-bold text-kpmg-navy">{editingId ? "Edit Product" : "Add AI Product"}</h3>
               <button onClick={() => setModalOpen(false)} className="p-1 text-kpmg-placeholder"><X className="w-5 h-5" /></button>

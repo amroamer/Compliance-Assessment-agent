@@ -8,6 +8,7 @@ import {
   FileText, Download, Eye, Trash2, Clock, ChevronDown, ChevronRight,
   File, Image, FileSpreadsheet, Presentation,
 } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 interface DocumentItem {
   id: string;
@@ -43,6 +44,7 @@ const formatSize = (bytes: number) => {
 
 export function DocumentList({ productId, domainId, subRequirementId }: Props) {
   const queryClient = useQueryClient();
+  const { confirm } = useConfirm();
   const { user } = useAuth();
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
 
@@ -108,7 +110,7 @@ export function DocumentList({ productId, domainId, subRequirementId }: Props) {
               {user?.role !== "viewer" && (
                 <button
                   onClick={() => {
-                    if (confirm(`Delete "${doc.file_name}"?`)) deleteMutation.mutate(doc.id);
+                    if (await confirm({ title: "Delete", message: `Delete "${${doc.file_name}}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(doc.id);
                   }}
                   className="p-1 text-gray-400 hover:text-red-500 rounded transition"
                   title="Delete"
@@ -129,7 +131,7 @@ export function DocumentList({ productId, domainId, subRequirementId }: Props) {
         >
           <div
             className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
+            onClick={async (e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <div className="flex items-center gap-2">

@@ -9,12 +9,14 @@ import { FrameworkTabs } from "@/components/frameworks/FrameworkTabs";
 import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
 import { useToast } from "@/components/ui/Toast";
 import { FileText, CheckCircle, Circle, ChevronDown, ChevronRight, Layers, List, Download, Upload, Trash2 } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 export default function FormsPage({ params }: { params: Promise<{ frameworkId: string }> }) {
   const { frameworkId } = use(params);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   const { data: fw } = useQuery<any>({ queryKey: ["framework", frameworkId], queryFn: () => api.get(`/frameworks/${frameworkId}`) });
   const { data: templates } = useQuery<any[]>({ queryKey: ["form-templates", frameworkId], queryFn: () => api.get(`/frameworks/${frameworkId}/form-templates`) });
@@ -49,7 +51,7 @@ export default function FormsPage({ params }: { params: Promise<{ frameworkId: s
                 e.target.value = "";
               }} />
             </label>
-            <button onClick={async () => { if (!confirm("Delete ALL form templates? This cannot be undone.")) return;
+            <button onClick={async () => { if (!await confirm({ title: "Delete All", message: "Delete ALL form templates? This action is permanent and cannot be undone.", variant: "danger", confirmLabel: "Delete All" })) return;
               try { await api.delete(`/frameworks/${frameworkId}/bulk-forms/delete-all`); queryClient.invalidateQueries({ queryKey: ["form-templates"] }); toast("All forms deleted", "info"); } catch (e: any) { toast(e.message, "error"); }
             }} className="kpmg-btn-danger text-xs px-3 py-2 flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" /> Delete All</button>
           </div>

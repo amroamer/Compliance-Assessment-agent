@@ -14,12 +14,14 @@ import {
   Save, Check, ArrowRight, FileText, Sparkles, Loader2, X as XIcon, ThumbsUp, ThumbsDown,
   Cpu, Building2, Users, Globe, Upload, Download, Trash2, File, Image, FileSpreadsheet, Paperclip,
 } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 export default function AssessmentWorkspacePage({ params }: { params: Promise<{ instanceId: string }> }) {
   const { instanceId } = use(params);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const { locale } = useLocale();
   const { user } = useAuth();
   const isAr = locale === "ar";
@@ -316,7 +318,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
           onClick={() => node.is_assessable ? selectNode(node.id) : toggle(node.id)}
         >
           {hasChildren ? (
-            <button onClick={(e) => { e.stopPropagation(); toggle(node.id); }} className="shrink-0">
+            <button onClick={async (e) => { e.stopPropagation(); toggle(node.id); }} className="shrink-0">
               {isExp ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
             </button>
           ) : <div className="w-3 shrink-0" />}
@@ -623,7 +625,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                                 </div>
                                 <a href={ev.download_url} className="p-1.5 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Download"><Download className="w-4 h-4" /></a>
                                 {!isStatusLocked && !isClient && (
-                                  <button onClick={() => { if (confirm(`Delete "${ev.file_name}"?`)) deleteEvidence(ev.id); }}
+                                  <button onClick={async () => { if (await confirm({ title: "Delete", message: `Delete "${${ev.file_name}}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteEvidence(ev.id); }}
                                     className="p-1.5 text-kpmg-placeholder hover:text-status-error rounded-btn transition opacity-0 group-hover:opacity-100" title="Delete"><Trash2 className="w-4 h-4" /></button>
                                 )}
                               </div>

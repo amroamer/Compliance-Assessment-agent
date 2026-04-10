@@ -9,6 +9,7 @@ import {
   Building2, Plus, Edit, Search, ExternalLink, X, Save,
   CheckCircle, Circle, Ban,
 } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 interface RegEntity {
   id: string;
@@ -45,6 +46,7 @@ const EMPTY_FORM: FormData = { name: "", name_ar: "", abbreviation: "", descript
 export default function RegulatoryEntitiesPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -218,12 +220,12 @@ export default function RegulatoryEntitiesPage() {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={(e) => { e.stopPropagation(); openEdit(entity); }}
+                        <button onClick={async (e) => { e.stopPropagation(); openEdit(entity); }}
                           className="p-2 text-kpmg-gray hover:text-kpmg-light hover:bg-kpmg-hover-bg rounded-btn transition" title="Edit">
                           <Edit className="w-4 h-4" />
                         </button>
                         {entity.status === "Active" && (
-                          <button onClick={(e) => { e.stopPropagation(); if (confirm(`Deactivate "${entity.abbreviation}"?`)) deactivateMutation.mutate(entity.id); }}
+                          <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Deactivate", message: `Deactivate "${${entity.abbreviation}}"?`, variant: "warning", confirmLabel: "Deactivate" })) deactivateMutation.mutate(entity.id); }}
                             className="p-2 text-kpmg-gray hover:text-status-error hover:bg-[#FEF2F2] rounded-btn transition" title="Deactivate">
                             <Ban className="w-4 h-4" />
                           </button>
@@ -241,7 +243,7 @@ export default function RegulatoryEntitiesPage() {
       {/* Add/Edit Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-card shadow-2xl w-full max-w-xl animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-xl animate-fade-in-up" onClick={async (e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border">
               <h3 className="text-lg font-heading font-bold text-kpmg-navy">
                 {editingId ? "Edit Regulatory Entity" : "Add Regulatory Entity"}

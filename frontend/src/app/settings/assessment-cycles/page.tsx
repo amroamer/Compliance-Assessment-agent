@@ -9,6 +9,7 @@ import {
   Plus, Edit, Trash2, CheckCircle, Circle, Clock,
   X, Save, AlertTriangle,
 } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 interface Framework { id: string; name: string; abbreviation: string }
 
@@ -40,6 +41,7 @@ const FW_COLORS: Record<string, string> = {
 export default function AssessmentCyclesPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [fwFilter, setFwFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -168,10 +170,10 @@ export default function AssessmentCyclesPage() {
                       </div>
                       <StatusBadge status={c.status} />
                       <div className="flex items-center gap-1 shrink-0">
-                        <button onClick={(e) => { e.stopPropagation(); openEdit(c); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light hover:bg-kpmg-hover-bg rounded-btn transition" title="Edit">
+                        <button onClick={async (e) => { e.stopPropagation(); openEdit(c); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light hover:bg-kpmg-hover-bg rounded-btn transition" title="Edit">
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); if (confirm(`Delete "${c.cycle_name}"?`)) deleteMutation.mutate(c.id); }}
+                        <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Delete", message: `Delete "${${c.cycle_name}}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(c.id); }}
                           className="p-2 text-kpmg-placeholder hover:text-status-error hover:bg-[#FEF2F2] rounded-btn transition" title="Delete">
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -188,7 +190,7 @@ export default function AssessmentCyclesPage() {
       {/* Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-card shadow-2xl w-full max-w-lg animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-lg animate-fade-in-up" onClick={async (e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border">
               <h3 className="text-lg font-heading font-bold text-kpmg-navy">{editingId ? "Edit Cycle" : "New Assessment Cycle"}</h3>
               <button onClick={() => setModalOpen(false)} className="p-1 text-kpmg-placeholder hover:text-kpmg-gray transition"><X className="w-5 h-5" /></button>

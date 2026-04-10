@@ -4,6 +4,7 @@ import { AuthProvider } from "@/providers/AuthProvider";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { LocaleProvider } from "@/providers/LocaleProvider";
 import { ToastProvider } from "@/components/ui/Toast";
+import { ConfirmProvider } from "@/components/ui/ConfirmModal";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 export const metadata: Metadata = {
@@ -23,7 +24,9 @@ export default function RootLayout({
           <QueryProvider>
             <LocaleProvider>
               <ToastProvider>
-                <AuthProvider>{children}</AuthProvider>
+                <ConfirmProvider>
+                  <AuthProvider>{children}</AuthProvider>
+                </ConfirmProvider>
               </ToastProvider>
             </LocaleProvider>
           </QueryProvider>

@@ -7,6 +7,7 @@ import { Header } from "@/components/layout/Header";
 import { FrameworkTabs } from "@/components/frameworks/FrameworkTabs";
 import { useToast } from "@/components/ui/Toast";
 import { Upload, Download, Trash2, FileText, File, FileSpreadsheet, Image } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 const FILE_ICONS: Record<string, any> = { pdf: FileText, docx: FileText, doc: FileText, xlsx: FileSpreadsheet, xls: FileSpreadsheet, png: Image, jpg: Image, jpeg: Image };
 
@@ -20,6 +21,7 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
   const { frameworkId } = use(params);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [uploading, setUploading] = useState(false);
 
   const { data: fw } = useQuery<any>({ queryKey: ["framework", frameworkId], queryFn: () => api.get(`/frameworks/${frameworkId}`) });
@@ -103,7 +105,7 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
                           <a href={`/api/frameworks/documents/${d.id}/download`} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Download">
                             <Download className="w-4 h-4" />
                           </a>
-                          <button onClick={() => { if (confirm(`Delete "${d.file_name}"?`)) deleteMutation.mutate(d.id); }}
+                          <button onClick={async () => { if (await confirm({ title: "Delete", message: `Delete "${${d.file_name}}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(d.id); }}
                             className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Delete">
                             <Trash2 className="w-4 h-4" />
                           </button>

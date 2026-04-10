@@ -8,6 +8,7 @@ import { FrameworkTabs } from "@/components/frameworks/FrameworkTabs";
 import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
 import { useToast } from "@/components/ui/Toast";
 import { Plus, Edit, X, Save, Trash2, ChevronDown, ChevronRight, Download, Upload } from "lucide-react";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 interface ScaleLevel { id?: string; value: number; label: string; label_ar: string; description: string; description_ar: string; color: string; sort_order: number }
 interface Scale { id: string; name: string; name_ar: string | null; description: string | null; scale_type: string; is_cumulative: boolean; min_value: number | null; max_value: number | null; step: number | null; is_active: boolean; levels: ScaleLevel[] }
@@ -16,6 +17,7 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
   const { frameworkId } = use(params);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [modalOpen, setModalOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<any>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -82,7 +84,7 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
                 e.target.value = "";
               }} />
             </label>
-            <button onClick={async () => { if (!confirm("Delete ALL scales? This cannot be undone.")) return;
+            <button onClick={async () => { if (!await confirm({ title: "Delete All", message: "Delete ALL scales? This action is permanent and cannot be undone.", variant: "danger", confirmLabel: "Delete All" })) return;
               try { await api.delete(`/frameworks/${frameworkId}/bulk-scales/delete-all`); queryClient.invalidateQueries({ queryKey: ["scales"] }); toast("All scales deleted", "info"); } catch (e: any) { toast(e.message, "error"); }
             }} className="kpmg-btn-danger text-xs px-3 py-2 flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" /> Delete All</button>
             <button onClick={openCreate} className="kpmg-btn-primary text-xs px-4 py-2 flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> New Scale</button>
@@ -109,7 +111,7 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
                       </div>
                       {s.name_ar && <p className="text-xs text-kpmg-gray mt-0.5 pl-6" dir="rtl">{s.name_ar}</p>}
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); openEdit(s); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light hover:bg-kpmg-hover-bg rounded-btn transition"><Edit className="w-4 h-4" /></button>
+                    <button onClick={async (e) => { e.stopPropagation(); openEdit(s); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light hover:bg-kpmg-hover-bg rounded-btn transition"><Edit className="w-4 h-4" /></button>
                   </div>
                   {/* Level color strip */}
                   {s.levels.length > 0 && (
@@ -158,7 +160,7 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
       {/* Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-card shadow-2xl w-full max-w-2xl animate-fade-in-up max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-2xl animate-fade-in-up max-h-[85vh] flex flex-col" onClick={async (e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border shrink-0">
               <h3 className="text-lg font-heading font-bold text-kpmg-navy">{editingId ? "Edit Scale" : "New Scale"}</h3>
               <button onClick={() => setModalOpen(false)} className="p-1 text-kpmg-placeholder hover:text-kpmg-gray transition"><X className="w-5 h-5" /></button>
