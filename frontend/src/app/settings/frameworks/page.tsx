@@ -104,11 +104,13 @@ export default function FrameworksPage() {
             <option value="">All entities</option>
             {entities?.map((e) => <option key={e.id} value={e.id}>{e.abbreviation} — {e.name}</option>)}
           </select>
-          <button onClick={async () => { const r = await fetch("/api/bulk-frameworks/export-excel", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "frameworks.xlsx"; a.click(); URL.revokeObjectURL(u); }} className="kpmg-btn-secondary flex items-center gap-2 text-sm"><Download className="w-4 h-4" /> Export</button>
-          <label className="kpmg-btn-secondary flex items-center gap-2 text-sm cursor-pointer"><Upload className="w-4 h-4" /> Import<input type="file" accept=".xlsx" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; setImportFile(file); const fd = new FormData(); fd.append("file", file); const r = await fetch("/api/bulk-frameworks/import-excel?preview=true", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd }); const p = await r.json(); if (r.ok) setImportPreview(p); e.target.value = ""; }} /></label>
-          <button onClick={openCreate} className="kpmg-btn-primary flex items-center gap-2">
-            <Plus className="w-4 h-4" /> New Framework
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={async () => { const r = await fetch("/api/bulk-frameworks/export-excel", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "frameworks.xlsx"; a.click(); URL.revokeObjectURL(u); }} className="kpmg-btn-secondary flex items-center gap-2 text-sm"><Download className="w-4 h-4" /> Export</button>
+            <label className="kpmg-btn-secondary flex items-center gap-2 text-sm cursor-pointer"><Upload className="w-4 h-4" /> Import<input type="file" accept=".xlsx" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; setImportFile(file); const fd = new FormData(); fd.append("file", file); const r = await fetch("/api/bulk-frameworks/import-excel?preview=true", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd }); const p = await r.json(); if (r.ok) setImportPreview(p); e.target.value = ""; }} /></label>
+            <button onClick={openCreate} className="kpmg-btn-primary flex items-center gap-2">
+              <Plus className="w-4 h-4" /> New Framework
+            </button>
+          </div>
         </div>
 
         {/* Framework Cards */}

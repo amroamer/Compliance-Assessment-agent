@@ -67,7 +67,10 @@
       "Bash(sed -i 's|/api/assessment-cycle-configs/export-excel|/api/bulk-cycles/export-excel|g; s|/api/assessment-cycle-configs/import-excel|/api/bulk-cycles/import-excel|g' backend/app/api/framework_docs.py)",
       "Bash(sed -i 's|/api/frameworks/export-excel|/api/bulk-frameworks/export-excel|g; s|/api/frameworks/import-excel|/api/bulk-frameworks/import-excel|g' backend/app/api/framework_docs.py)",
       "Bash(sed -i 's|/api/users/export-excel|/api/bulk-users/export-excel|g; s|/api/users/import-excel|/api/bulk-users/import-excel|g' frontend/src/app/users/page.tsx)",
-      "Bash(grep -n \"^,\" frontend/src/app/settings/*/page.tsx frontend/src/app/users/page.tsx)"
+      "Bash(grep -n \"^,\" frontend/src/app/settings/*/page.tsx frontend/src/app/users/page.tsx)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:4200/api/health)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:4200)"
     ]
   }
 }
