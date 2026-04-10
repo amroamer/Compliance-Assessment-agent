@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { FrameworkTabs } from "@/components/frameworks/FrameworkTabs";
+import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
 import { useToast } from "@/components/ui/Toast";
 import { Plus, Edit, X, Save, Trash2, ChevronDown, ChevronRight, Download, Upload } from "lucide-react";
 
@@ -16,6 +17,9 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [modalOpen, setModalOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState<any>(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
   const [expandedScale, setExpandedScale] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<any>({ name: "", name_ar: "", description: "", scale_type: "ordinal", is_cumulative: false, min_value: "", max_value: "", step: "", levels: [] });
@@ -71,19 +75,10 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
                 const file = e.target.files?.[0]; if (!file) return;
                 const fd = new FormData(); fd.append("file", file);
                 const auth = { Authorization: `Bearer ${localStorage.getItem("token")}` };
-                const prev = await fetch(`/api/frameworks/${frameworkId}/bulk-scales/import-excel?preview=true`, { method: "POST", headers: auth, body: fd });
-                const p = await prev.json();
-                if (!prev.ok) { toast(p.detail || "Preview failed", "error"); e.target.value = ""; return; }
-                const msg = `Found ${p.total_in_file} scales:
-• ${p.will_import} new to import
-• ${p.will_skip} duplicates (skipped)
+                const r = await fetch(`/api/frameworks/${frameworkId}/bulk-scales/import-excel?preview=true`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+                const p = await r.json();
+                if (r.ok) { setImportFile(file); setImportPreview(p); } else { toast(p.detail || "Preview failed", "error"); }
 
-Proceed?`;
-                if (!confirm(msg)) { e.target.value = ""; return; }
-                const fd2 = new FormData(); fd2.append("file", file);
-                const r = await fetch(`/api/frameworks/${frameworkId}/bulk-scales/import-excel`, { method: "POST", headers: auth, body: fd2 });
-                const d = await r.json();
-                if (r.ok) { toast(`Imported ${d.imported_scales} scales (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["scales"] }); } else { toast(d.detail || "Import failed", "error"); }
                 e.target.value = "";
               }} />
             </label>
@@ -215,6 +210,16 @@ Proceed?`;
           </div>
         </div>
       )}
+
+      <ImportPreviewModal open={!!importPreview} preview={importPreview} loading={importing} itemLabel="scales" nameKey="name"
+        onClose={() => { setImportPreview(null); setImportFile(null); }}
+        onConfirm={async () => {
+          if (!importFile) return; setImporting(true);
+          const fd = new FormData(); fd.append("file", importFile);
+          const r = await fetch(`/api/frameworks/${frameworkId}/bulk-scales/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+          const d = await r.json(); setImporting(false); setImportPreview(null); setImportFile(null);
+          if (r.ok) { toast(`Imported ${d.imported_scales} scales (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["scales"] }); } else { toast(d.detail || "Import failed", "error"); }
+        }} />
     </div>
   );
 }

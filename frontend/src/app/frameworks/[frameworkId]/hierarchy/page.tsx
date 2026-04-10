@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import { FrameworkTabs } from "@/components/frameworks/FrameworkTabs";
+import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
 import {
   ArrowLeft, Plus, Edit, Trash2, EyeOff, ChevronRight, ChevronDown,
   GripVertical, Download, Upload, X, Save, BookOpen,
@@ -42,6 +43,9 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
   const [showInactive, setShowInactive] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState<any>(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NodeForm>(EMPTY_FORM);
   const [parentBreadcrumb, setParentBreadcrumb] = useState("");
@@ -276,19 +280,11 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
               <Upload className="w-3.5 h-3.5" /> Import Excel
               <input type="file" accept=".xlsx" className="hidden" onChange={async (e) => {
                 const file = e.target.files?.[0]; if (!file) return;
+                setImportFile(file);
                 const fd = new FormData(); fd.append("file", file);
-                const auth = { Authorization: `Bearer ${localStorage.getItem("token")}` };
-                // Step 1: Preview
-                const prev = await fetch(`/api/frameworks/${frameworkId}/hierarchy/import-excel?preview=true`, { method: "POST", headers: auth, body: fd });
-                const p = await prev.json();
-                if (!prev.ok) { toast(p.detail || "Preview failed", "error"); e.target.value = ""; return; }
-                const msg = `Found ${p.total_in_file} items in file:\n• ${p.will_import} new items to import\n• ${p.will_skip} duplicates (will be skipped)\n${p.duplicates?.length ? "\nDuplicates: " + p.duplicates.map((d: any) => d.reference_code).join(", ") : ""}\n\nProceed with import?`;
-                if (!confirm(msg)) { e.target.value = ""; return; }
-                // Step 2: Actual import
-                const fd2 = new FormData(); fd2.append("file", file);
-                const r = await fetch(`/api/frameworks/${frameworkId}/hierarchy/import-excel`, { method: "POST", headers: auth, body: fd2 });
-                const d = await r.json();
-                if (r.ok) { toast(`Imported ${d.imported} nodes (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["nodes"] }); } else { toast(d.detail || "Import failed", "error"); }
+                const r = await fetch(`/api/frameworks/${frameworkId}/hierarchy/import-excel?preview=true`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+                const p = await r.json();
+                if (r.ok) { setImportPreview(p); } else { toast(p.detail || "Preview failed", "error"); }
                 e.target.value = "";
               }} />
             </label>
@@ -428,6 +424,15 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
           </div>
         </div>
       )}
+      <ImportPreviewModal open={!!importPreview} preview={importPreview} loading={importing} itemLabel="nodes" nameKey="reference_code"
+        onClose={() => { setImportPreview(null); setImportFile(null); }}
+        onConfirm={async () => {
+          if (!importFile) return; setImporting(true);
+          const fd = new FormData(); fd.append("file", importFile);
+          const r = await fetch(`/api/frameworks/${frameworkId}/hierarchy/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+          const d = await r.json(); setImporting(false); setImportPreview(null); setImportFile(null);
+          if (r.ok) { toast(`Imported ${d.imported} nodes (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["nodes"] }); } else { toast(d.detail || "Import failed", "error"); }
+        }} />
     </div>
   );
 }

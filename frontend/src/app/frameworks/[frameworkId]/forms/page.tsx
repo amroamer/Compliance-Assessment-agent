@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Header } from "@/components/layout/Header";
 import { FrameworkTabs } from "@/components/frameworks/FrameworkTabs";
+import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
 import { useToast } from "@/components/ui/Toast";
 import { FileText, CheckCircle, Circle, ChevronDown, ChevronRight, Layers, List, Download, Upload, Trash2 } from "lucide-react";
 
@@ -41,19 +42,10 @@ export default function FormsPage({ params }: { params: Promise<{ frameworkId: s
                 const file = e.target.files?.[0]; if (!file) return;
                 const fd = new FormData(); fd.append("file", file);
                 const auth = { Authorization: `Bearer ${localStorage.getItem("token")}` };
-                const prev = await fetch(`/api/frameworks/${frameworkId}/bulk-forms/import-excel?preview=true`, { method: "POST", headers: auth, body: fd });
-                const p = await prev.json();
-                if (!prev.ok) { toast(p.detail || "Preview failed", "error"); e.target.value = ""; return; }
-                const msg = `Found ${p.total_in_file} templates:
-• ${p.will_import} new to import
-• ${p.will_skip} duplicates (skipped)
+                const r = await fetch(`/api/frameworks/${frameworkId}/bulk-forms/import-excel?preview=true`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+                const p = await r.json();
+                if (r.ok) { setImportFile(file); setImportPreview(p); } else { toast(p.detail || "Preview failed", "error"); }
 
-Proceed?`;
-                if (!confirm(msg)) { e.target.value = ""; return; }
-                const fd2 = new FormData(); fd2.append("file", file);
-                const r = await fetch(`/api/frameworks/${frameworkId}/bulk-forms/import-excel`, { method: "POST", headers: auth, body: fd2 });
-                const d = await r.json();
-                if (r.ok) { toast(`Imported ${d.imported_templates} templates (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["form-templates"] }); } else { toast(d.detail || "Import failed", "error"); }
                 e.target.value = "";
               }} />
             </label>
@@ -151,6 +143,16 @@ Proceed?`;
           })}
         </div>
       </div>
+
+      <ImportPreviewModal open={!!importPreview} preview={importPreview} loading={importing} itemLabel="templates" nameKey="name"
+        onClose={() => { setImportPreview(null); setImportFile(null); }}
+        onConfirm={async () => {
+          if (!importFile) return; setImporting(true);
+          const fd = new FormData(); fd.append("file", importFile);
+          const r = await fetch(`/api/frameworks/${frameworkId}/bulk-forms/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+          const d = await r.json(); setImporting(false); setImportPreview(null); setImportFile(null);
+          if (r.ok) { toast(`Imported ${d.imported_templates} templates (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["form-templates"] }); } else { toast(d.detail || "Import failed", "error"); }
+        }} />
     </div>
   );
 }
