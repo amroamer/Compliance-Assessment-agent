@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { FrameworkTabs } from "@/components/frameworks/FrameworkTabs";
 import { useToast } from "@/components/ui/Toast";
-import { Upload, Download, Trash2, FileText, File, FileSpreadsheet, Image, Eye } from "lucide-react";
+import { Upload, Download, Trash2, FileText, File, FileSpreadsheet, Image, Eye, X, Loader2 } from "lucide-react";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 
 const FILE_ICONS: Record<string, any> = { pdf: FileText, docx: FileText, doc: FileText, xlsx: FileSpreadsheet, xls: FileSpreadsheet, png: Image, jpg: Image, jpeg: Image };
@@ -23,6 +23,20 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const [uploading, setUploading] = useState(false);
+  const [viewingDoc, setViewingDoc] = useState<{ url: string; name: string; type: string } | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
+
+  const openViewer = async (docId: string, fileName: string) => {
+    setViewLoading(true);
+    try {
+      const r = await fetch(`/api/frameworks/documents/${docId}/download`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const ext = fileName.split(".").pop()?.toLowerCase() || "";
+      setViewingDoc({ url, name: fileName, type: ext });
+    } catch { toast("Failed to load document", "error"); }
+    setViewLoading(false);
+  };
 
   const { data: fw } = useQuery<any>({ queryKey: ["framework", frameworkId], queryFn: () => api.get(`/frameworks/${frameworkId}`) });
   const { data: docs, isLoading } = useQuery<any[]>({ queryKey: ["fw-docs", frameworkId], queryFn: () => api.get(`/frameworks/${frameworkId}/documents`) });
@@ -92,10 +106,7 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
                   return (
                     <tr key={d.id} className={`border-b border-kpmg-border hover:bg-kpmg-hover-bg transition-colors ${idx % 2 === 1 ? "bg-kpmg-light-gray" : "bg-white"}`}>
                       <td className="px-5 py-4">
-                        <button onClick={async () => {
-                          const r = await fetch(`/api/frameworks/documents/${d.id}/download`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
-                          const b = await r.blob(); const u = URL.createObjectURL(b); window.open(u, "_blank");
-                        }} className="flex items-center gap-3 hover:text-kpmg-light transition">
+                        <button onClick={() => openViewer(d.id, d.file_name)} className="flex items-center gap-3 hover:text-kpmg-light transition">
                           <IconEl className="w-5 h-5 text-kpmg-gray shrink-0" />
                           <span className="text-sm font-medium text-kpmg-navy hover:underline">{d.file_name}</span>
                         </button>
@@ -105,10 +116,7 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
                       <td className="px-5 py-4 text-xs text-kpmg-placeholder">{new Date(d.uploaded_at).toLocaleDateString()}</td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={async () => {
-                            const r = await fetch(`/api/frameworks/documents/${d.id}/download`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
-                            const b = await r.blob(); const u = URL.createObjectURL(b); window.open(u, "_blank");
-                          }} className="p-2 text-kpmg-placeholder hover:text-kpmg-blue rounded-btn transition" title="View">
+                          <button onClick={() => openViewer(d.id, d.file_name)} className="p-2 text-kpmg-placeholder hover:text-kpmg-blue rounded-btn transition" title="View">
                             <Eye className="w-4 h-4" />
                           </button>
                           <button onClick={async () => {
@@ -131,6 +139,69 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
           </div>
         )}
       </div>
+
+      {/* Loading overlay */}
+      {viewLoading && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
+          <div className="bg-white rounded-card p-8 flex items-center gap-3">
+            <Loader2 className="w-6 h-6 text-kpmg-blue animate-spin" />
+            <span className="text-kpmg-navy font-heading font-semibold">Loading document...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Document Viewer Modal */}
+      {viewingDoc && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => { if (viewingDoc.url) URL.revokeObjectURL(viewingDoc.url); setViewingDoc(null); }}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-3 border-b border-kpmg-border shrink-0">
+              <div className="flex items-center gap-3">
+                <FileText className="w-5 h-5 text-kpmg-blue" />
+                <h3 className="text-sm font-heading font-bold text-kpmg-navy truncate max-w-[400px]">{viewingDoc.name}</h3>
+                <span className="text-[10px] font-mono text-kpmg-placeholder uppercase">{viewingDoc.type}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => {
+                  const a = document.createElement("a"); a.href = viewingDoc.url; a.download = viewingDoc.name; a.click();
+                }} className="kpmg-btn-secondary text-xs px-3 py-1.5 flex items-center gap-1">
+                  <Download className="w-3.5 h-3.5" /> Download
+                </button>
+                <button onClick={() => { URL.revokeObjectURL(viewingDoc.url); setViewingDoc(null); }} className="p-1.5 text-kpmg-placeholder hover:text-kpmg-gray">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            {/* Content */}
+            <div className="flex-1 overflow-hidden bg-kpmg-light-gray">
+              {["pdf"].includes(viewingDoc.type) ? (
+                <iframe src={viewingDoc.url} className="w-full h-full border-0" />
+              ) : ["png", "jpg", "jpeg", "gif"].includes(viewingDoc.type) ? (
+                <div className="w-full h-full flex items-center justify-center p-4 overflow-auto">
+                  <img src={viewingDoc.url} alt={viewingDoc.name} className="max-w-full max-h-full object-contain rounded" />
+                </div>
+              ) : ["docx", "doc", "xlsx", "xls", "pptx"].includes(viewingDoc.type) ? (
+                <div className="w-full h-full flex flex-col">
+                  <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(viewingDoc.url)}`} className="w-full flex-1 border-0" />
+                  <div className="px-4 py-2 bg-white border-t border-kpmg-border text-center">
+                    <p className="text-[10px] text-kpmg-placeholder">If the preview doesn't load, <button onClick={() => { const a = document.createElement("a"); a.href = viewingDoc.url; a.download = viewingDoc.name; a.click(); }} className="text-kpmg-light hover:underline">download the file</button> to view it locally.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <File className="w-16 h-16 text-kpmg-border mx-auto mb-3" />
+                    <p className="text-kpmg-gray font-heading font-semibold">Preview not available for .{viewingDoc.type} files</p>
+                    <button onClick={() => { const a = document.createElement("a"); a.href = viewingDoc.url; a.download = viewingDoc.name; a.click(); }} className="kpmg-btn-primary text-sm mt-3 flex items-center gap-1.5 mx-auto">
+                      <Download className="w-4 h-4" /> Download File
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
