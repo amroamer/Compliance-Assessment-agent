@@ -61,6 +61,70 @@ async def download_document(doc_id: uuid.UUID, db: AsyncSession = Depends(get_db
     if not doc: raise HTTPException(404, "Document not found")
     return FileResponse(doc.file_path, filename=doc.file_name)
 
+@router.get("/api/frameworks/documents/{doc_id}/preview")
+async def preview_document(doc_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Return document content as HTML for in-app preview."""
+    from fastapi.responses import HTMLResponse
+    doc = (await db.execute(select(FrameworkDocument).where(FrameworkDocument.id == doc_id))).scalar_one_or_none()
+    if not doc: raise HTTPException(404, "Document not found")
+    ext = os.path.splitext(doc.file_name)[1].lower()
+    try:
+        if ext == ".pdf":
+            # PDF: return as file for iframe
+            return FileResponse(doc.file_path, filename=doc.file_name, media_type="application/pdf")
+        elif ext in (".docx", ".doc"):
+            import docx as python_docx
+            d = python_docx.Document(doc.file_path)
+            html = "<div style='font-family:Calibri,sans-serif;max-width:800px;margin:0 auto;padding:40px;'>"
+            for p in d.paragraphs:
+                style = p.style.name if p.style else ""
+                text = p.text.strip()
+                if not text: html += "<br/>"; continue
+                if "Heading 1" in style: html += f"<h1 style='color:#00338D;border-bottom:2px solid #0091DA;padding-bottom:8px;'>{text}</h1>"
+                elif "Heading 2" in style: html += f"<h2 style='color:#1A1A2E;'>{text}</h2>"
+                elif "Heading 3" in style: html += f"<h3 style='color:#483698;'>{text}</h3>"
+                else: html += f"<p style='line-height:1.6;color:#333;'>{text}</p>"
+            # Tables
+            for table in d.tables:
+                html += "<table style='width:100%;border-collapse:collapse;margin:16px 0;'>"
+                for i, row in enumerate(table.rows):
+                    html += "<tr>"
+                    for cell in row.cells:
+                        tag = "th" if i == 0 else "td"
+                        bg = "background:#00338D;color:white;" if i == 0 else ""
+                        html += f"<{tag} style='border:1px solid #ddd;padding:8px;{bg}'>{cell.text}</{tag}>"
+                    html += "</tr>"
+                html += "</table>"
+            html += "</div>"
+            return HTMLResponse(content=html)
+        elif ext in (".xlsx", ".xls"):
+            import openpyxl
+            wb = openpyxl.load_workbook(doc.file_path, data_only=True)
+            html = "<div style='font-family:Calibri,sans-serif;padding:20px;'>"
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                html += f"<h2 style='color:#00338D;'>{sheet_name}</h2>"
+                html += "<table style='width:100%;border-collapse:collapse;margin-bottom:24px;'>"
+                for i, row in enumerate(ws.iter_rows(max_row=200, values_only=True)):
+                    html += "<tr>"
+                    for cell in row:
+                        tag = "th" if i == 0 else "td"
+                        bg = "background:#00338D;color:white;" if i == 0 else ""
+                        val = str(cell) if cell is not None else ""
+                        html += f"<{tag} style='border:1px solid #ddd;padding:6px 10px;font-size:13px;{bg}'>{val}</{tag}>"
+                    html += "</tr>"
+                html += "</table>"
+            html += "</div>"
+            return HTMLResponse(content=html)
+        elif ext in (".png", ".jpg", ".jpeg", ".gif"):
+            return FileResponse(doc.file_path, filename=doc.file_name)
+        else:
+            raise HTTPException(400, f"Preview not supported for {ext} files")
+    except HTTPException: raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate preview: {str(e)}")
+
+
 @router.delete("/api/frameworks/documents/{doc_id}", status_code=204)
 async def delete_document(doc_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     doc = (await db.execute(select(FrameworkDocument).where(FrameworkDocument.id == doc_id))).scalar_one_or_none()

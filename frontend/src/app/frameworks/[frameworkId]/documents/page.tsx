@@ -23,17 +23,25 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const [uploading, setUploading] = useState(false);
-  const [viewingDoc, setViewingDoc] = useState<{ url: string; name: string; type: string } | null>(null);
+  const [viewingDoc, setViewingDoc] = useState<{ url: string; name: string; type: string; html: string | null } | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
 
   const openViewer = async (docId: string, fileName: string) => {
     setViewLoading(true);
     try {
-      const r = await fetch(`/api/frameworks/documents/${docId}/download`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
       const ext = fileName.split(".").pop()?.toLowerCase() || "";
-      setViewingDoc({ url, name: fileName, type: ext });
+      const auth = { Authorization: `Bearer ${localStorage.getItem("token")}` };
+      if (["pdf", "png", "jpg", "jpeg", "gif"].includes(ext)) {
+        // Binary files: use blob URL
+        const r = await fetch(`/api/frameworks/documents/${docId}/download`, { headers: auth });
+        const blob = await r.blob();
+        setViewingDoc({ url: URL.createObjectURL(blob), name: fileName, type: ext, html: null });
+      } else {
+        // Word/Excel: get HTML preview
+        const r = await fetch(`/api/frameworks/documents/${docId}/preview`, { headers: auth });
+        const html = await r.text();
+        setViewingDoc({ url: "", name: fileName, type: ext, html });
+      }
     } catch { toast("Failed to load document", "error"); }
     setViewLoading(false);
   };
@@ -174,27 +182,21 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
             </div>
             {/* Content */}
             <div className="flex-1 overflow-hidden bg-kpmg-light-gray">
-              {["pdf"].includes(viewingDoc.type) ? (
+              {viewingDoc.html ? (
+                <div className="w-full h-full overflow-auto bg-white">
+                  <div dangerouslySetInnerHTML={{ __html: viewingDoc.html }} />
+                </div>
+              ) : ["pdf"].includes(viewingDoc.type) ? (
                 <iframe src={viewingDoc.url} className="w-full h-full border-0" />
               ) : ["png", "jpg", "jpeg", "gif"].includes(viewingDoc.type) ? (
                 <div className="w-full h-full flex items-center justify-center p-4 overflow-auto">
                   <img src={viewingDoc.url} alt={viewingDoc.name} className="max-w-full max-h-full object-contain rounded" />
-                </div>
-              ) : ["docx", "doc", "xlsx", "xls", "pptx"].includes(viewingDoc.type) ? (
-                <div className="w-full h-full flex flex-col">
-                  <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(viewingDoc.url)}`} className="w-full flex-1 border-0" />
-                  <div className="px-4 py-2 bg-white border-t border-kpmg-border text-center">
-                    <p className="text-[10px] text-kpmg-placeholder">If the preview doesn't load, <button onClick={() => { const a = document.createElement("a"); a.href = viewingDoc.url; a.download = viewingDoc.name; a.click(); }} className="text-kpmg-light hover:underline">download the file</button> to view it locally.</p>
-                  </div>
                 </div>
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <div className="text-center">
                     <File className="w-16 h-16 text-kpmg-border mx-auto mb-3" />
                     <p className="text-kpmg-gray font-heading font-semibold">Preview not available for .{viewingDoc.type} files</p>
-                    <button onClick={() => { const a = document.createElement("a"); a.href = viewingDoc.url; a.download = viewingDoc.name; a.click(); }} className="kpmg-btn-primary text-sm mt-3 flex items-center gap-1.5 mx-auto">
-                      <Download className="w-4 h-4" /> Download File
-                    </button>
                   </div>
                 </div>
               )}
