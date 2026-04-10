@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { FrameworkTabs } from "@/components/frameworks/FrameworkTabs";
 import { useToast } from "@/components/ui/Toast";
-import { Upload, Download, Trash2, FileText, File, FileSpreadsheet, Image } from "lucide-react";
+import { Upload, Download, Trash2, FileText, File, FileSpreadsheet, Image, Eye } from "lucide-react";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 
 const FILE_ICONS: Record<string, any> = { pdf: FileText, docx: FileText, doc: FileText, xlsx: FileSpreadsheet, xls: FileSpreadsheet, png: Image, jpg: Image, jpeg: Image };
@@ -92,16 +92,25 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
                   return (
                     <tr key={d.id} className={`border-b border-kpmg-border hover:bg-kpmg-hover-bg transition-colors ${idx % 2 === 1 ? "bg-kpmg-light-gray" : "bg-white"}`}>
                       <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
+                        <button onClick={async () => {
+                          const r = await fetch(`/api/frameworks/documents/${d.id}/download`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+                          const b = await r.blob(); const u = URL.createObjectURL(b); window.open(u, "_blank");
+                        }} className="flex items-center gap-3 hover:text-kpmg-light transition">
                           <IconEl className="w-5 h-5 text-kpmg-gray shrink-0" />
-                          <span className="text-sm font-medium text-kpmg-navy">{d.file_name}</span>
-                        </div>
+                          <span className="text-sm font-medium text-kpmg-navy hover:underline">{d.file_name}</span>
+                        </button>
                       </td>
                       <td className="px-5 py-4 text-center"><span className="text-xs text-kpmg-placeholder font-mono uppercase">{ext}</span></td>
                       <td className="px-5 py-4 text-center text-xs text-kpmg-placeholder">{formatSize(d.file_size || 0)}</td>
                       <td className="px-5 py-4 text-xs text-kpmg-placeholder">{new Date(d.uploaded_at).toLocaleDateString()}</td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-1">
+                          <button onClick={async () => {
+                            const r = await fetch(`/api/frameworks/documents/${d.id}/download`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+                            const b = await r.blob(); const u = URL.createObjectURL(b); window.open(u, "_blank");
+                          }} className="p-2 text-kpmg-placeholder hover:text-kpmg-blue rounded-btn transition" title="View">
+                            <Eye className="w-4 h-4" />
+                          </button>
                           <button onClick={async () => {
                             const r = await fetch(`/api/frameworks/documents/${d.id}/download`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
                             const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = d.file_name; a.click(); URL.revokeObjectURL(u);
