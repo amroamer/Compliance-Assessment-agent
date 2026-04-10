@@ -66,7 +66,8 @@
       "Bash(sed -i 's|/api/regulatory-entities/export-excel|/api/bulk-regulatory-entities/export-excel|g; s|/api/regulatory-entities/import-excel|/api/bulk-regulatory-entities/import-excel|g' backend/app/api/framework_docs.py)",
       "Bash(sed -i 's|/api/assessment-cycle-configs/export-excel|/api/bulk-cycles/export-excel|g; s|/api/assessment-cycle-configs/import-excel|/api/bulk-cycles/import-excel|g' backend/app/api/framework_docs.py)",
       "Bash(sed -i 's|/api/frameworks/export-excel|/api/bulk-frameworks/export-excel|g; s|/api/frameworks/import-excel|/api/bulk-frameworks/import-excel|g' backend/app/api/framework_docs.py)",
-      "Bash(sed -i 's|/api/users/export-excel|/api/bulk-users/export-excel|g; s|/api/users/import-excel|/api/bulk-users/import-excel|g' frontend/src/app/users/page.tsx)"
+      "Bash(sed -i 's|/api/users/export-excel|/api/bulk-users/export-excel|g; s|/api/users/import-excel|/api/bulk-users/import-excel|g' frontend/src/app/users/page.tsx)",
+      "Bash(grep -n \"^,\" frontend/src/app/settings/*/page.tsx frontend/src/app/users/page.tsx)"
     ]
   }
 }
