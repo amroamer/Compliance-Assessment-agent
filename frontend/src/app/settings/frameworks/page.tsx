@@ -1,0 +1,254 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { Header } from "@/components/layout/Header";
+import { useToast } from "@/components/ui/Toast";
+import {
+  BookOpen, Plus, Edit, ChevronRight, X, Save,
+} from "lucide-react";
+
+interface RegEntity { id: string; name: string; abbreviation: string }
+
+interface Framework {
+  id: string;
+  name: string;
+  abbreviation: string;
+  name_ar: string | null;
+  description: string | null;
+  entity_id: string;
+  entity: { id: string; name: string; abbreviation: string } | null;
+  version: string | null;
+  status: string;
+  icon: string | null;
+}
+
+interface FormData {
+  name: string; abbreviation: string; name_ar: string; description: string;
+  entity_id: string; version: string; status: string; icon: string;
+}
+
+const EMPTY_FORM: FormData = { name: "", abbreviation: "", name_ar: "", description: "", entity_id: "", version: "", status: "Active", icon: "book" };
+
+export default function FrameworksPage() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [entityFilter, setEntityFilter] = useState("");
+  const router = useRouter();
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<FormData>(EMPTY_FORM);
+  const [error, setError] = useState("");
+
+  const { data: frameworks, isLoading } = useQuery<Framework[]>({
+    queryKey: ["frameworks", entityFilter],
+    queryFn: () => {
+      const params = entityFilter ? `?entity_id=${entityFilter}` : "";
+      return api.get(`/frameworks/${params}`);
+    },
+  });
+
+  const { data: entities } = useQuery<RegEntity[]>({
+    queryKey: ["reg-entities-list"],
+    queryFn: () => api.get("/regulatory-entities/"),
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (data: FormData) => {
+      const payload = { ...data, abbreviation: data.abbreviation.toUpperCase() };
+      return editingId
+        ? api.put(`/frameworks/${editingId}`, payload)
+        : api.post("/frameworks/", payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["frameworks"] });
+      setModalOpen(false);
+      setEditingId(null);
+      setForm(EMPTY_FORM);
+      setError("");
+      toast(editingId ? "Framework updated" : "Framework created", "success");
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const openCreate = () => { setEditingId(null); setForm(EMPTY_FORM); setError(""); setModalOpen(true); };
+  const openEdit = (fw: Framework) => {
+    setEditingId(fw.id);
+    setForm({
+      name: fw.name, abbreviation: fw.abbreviation, name_ar: fw.name_ar || "",
+      description: fw.description || "", entity_id: fw.entity_id,
+      version: fw.version || "", status: fw.status, icon: fw.icon || "book",
+    });
+    setError("");
+    setModalOpen(true);
+  };
+
+  return (
+    <div>
+      <Header title="Compliance Frameworks" />
+      <div className="p-8 max-w-content mx-auto animate-fade-in-up">
+        <div className="mb-6">
+          <h1 className="text-2xl font-heading font-bold text-kpmg-navy">Frameworks</h1>
+          <p className="text-kpmg-gray text-sm font-body mt-1">Compliance frameworks grouped by regulatory entity.</p>
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center justify-between mb-6">
+          <select value={entityFilter} onChange={(e) => setEntityFilter(e.target.value)} className="kpmg-input w-auto">
+            <option value="">All entities</option>
+            {entities?.map((e) => <option key={e.id} value={e.id}>{e.abbreviation} — {e.name}</option>)}
+          </select>
+          <button onClick={openCreate} className="kpmg-btn-primary flex items-center gap-2">
+            <Plus className="w-4 h-4" /> New Framework
+          </button>
+        </div>
+
+        {/* Framework Cards */}
+        {isLoading ? (
+          <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-20 kpmg-skeleton" />)}</div>
+        ) : !frameworks?.length ? (
+          <div className="kpmg-card p-16 text-center">
+            <BookOpen className="w-14 h-14 text-kpmg-border mx-auto mb-4" />
+            <p className="text-kpmg-gray font-heading font-semibold text-lg">No frameworks found</p>
+            <p className="text-sm text-kpmg-placeholder mt-1 font-body">Create your first compliance framework</p>
+          </div>
+        ) : (
+          <div className="space-y-3 animate-stagger">
+            {frameworks.map((fw) => (
+              <div key={fw.id} className="kpmg-card-hover flex items-center p-4 group cursor-pointer" onClick={() => router.push(`/frameworks/${fw.id}/hierarchy`)}>
+                {/* Icon */}
+                <div className="w-12 h-12 rounded-card bg-kpmg-navy flex items-center justify-center shrink-0 mr-4">
+                  <BookOpen className="w-5 h-5 text-white" />
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-heading font-bold text-kpmg-navy">
+                    {fw.name} <span className="text-kpmg-gray font-normal">({fw.abbreviation})</span>
+                  </p>
+                  <p className="text-xs text-kpmg-placeholder font-body">
+                    {fw.entity?.abbreviation || "—"}
+                    {fw.version && <span className="ml-2 text-kpmg-gray">&middot; {fw.version}</span>}
+                  </p>
+                </div>
+
+                {/* Status */}
+                <span className={`mr-4 text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                  fw.status === "Active" ? "bg-status-success/10 text-status-success" :
+                  fw.status === "Draft" ? "bg-status-warning/10 text-status-warning" :
+                  "bg-kpmg-light-gray text-kpmg-placeholder"
+                }`}>
+                  {fw.status}
+                </span>
+
+                {/* Actions */}
+                <button onClick={(e) => { e.stopPropagation(); openEdit(fw); }}
+                  className="p-2 text-kpmg-placeholder hover:text-kpmg-light hover:bg-kpmg-hover-bg rounded-btn transition opacity-0 group-hover:opacity-100 mr-1">
+                  <Edit className="w-4 h-4" />
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); router.push(`/frameworks/${fw.id}/hierarchy`); }}
+                  className="p-2 text-kpmg-placeholder hover:text-kpmg-light hover:bg-kpmg-hover-bg rounded-btn transition">
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Add/Edit Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setModalOpen(false)}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-xl animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border">
+              <h3 className="text-lg font-heading font-bold text-kpmg-navy">
+                {editingId ? "Edit Framework" : "New Framework"}
+              </h3>
+              <button onClick={() => setModalOpen(false)} className="p-1 text-kpmg-placeholder hover:text-kpmg-gray transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
+              {error && <div className="bg-[#FEF2F2] border border-[#FECACA] text-status-error px-4 py-3 rounded-btn text-sm">{error}</div>}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="kpmg-label">Framework Name *</label>
+                  <input type="text" value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    className="kpmg-input" placeholder="National Data Index" />
+                </div>
+                <div>
+                  <label className="kpmg-label">Abbreviation *</label>
+                  <input type="text" value={form.abbreviation}
+                    onChange={(e) => setForm((f) => ({ ...f, abbreviation: e.target.value.toUpperCase() }))}
+                    className="kpmg-input font-mono uppercase" placeholder="NDI" />
+                </div>
+              </div>
+
+              <div>
+                <label className="kpmg-label">Arabic Name</label>
+                <input type="text" dir="rtl" value={form.name_ar}
+                  onChange={(e) => setForm((f) => ({ ...f, name_ar: e.target.value }))}
+                  className="kpmg-input font-arabic text-right" placeholder="المؤشر الوطني للبيانات" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="kpmg-label">Regulatory Entity *</label>
+                  <select value={form.entity_id}
+                    onChange={(e) => setForm((f) => ({ ...f, entity_id: e.target.value }))}
+                    className="kpmg-input">
+                    <option value="">Select entity...</option>
+                    {entities?.filter((e) => e.status === "Active").map((e) => (
+                      <option key={e.id} value={e.id}>{e.abbreviation} — {e.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="kpmg-label">Version</label>
+                  <input type="text" value={form.version}
+                    onChange={(e) => setForm((f) => ({ ...f, version: e.target.value }))}
+                    className="kpmg-input" placeholder="V1.1" />
+                </div>
+              </div>
+
+              <div>
+                <label className="kpmg-label">Description</label>
+                <textarea value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  rows={2} className="kpmg-input resize-none" placeholder="Brief description..." />
+              </div>
+
+              <div>
+                <label className="kpmg-label">Status</label>
+                <select value={form.status}
+                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                  className="kpmg-input">
+                  <option value="Active">Active</option>
+                  <option value="Draft">Draft</option>
+                  <option value="Archived">Archived</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border">
+              <button onClick={() => setModalOpen(false)} className="kpmg-btn-secondary text-sm px-5 py-2.5">Cancel</button>
+              <button
+                onClick={() => saveMutation.mutate(form)}
+                disabled={saveMutation.isPending || !form.name || !form.abbreviation || !form.entity_id}
+                className="kpmg-btn-primary text-sm px-5 py-2.5 flex items-center gap-1.5"
+              >
+                <Save className="w-4 h-4" />
+                {saveMutation.isPending ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
