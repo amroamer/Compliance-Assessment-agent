@@ -20,6 +20,7 @@ from app.models.assessment_engine import (
 )
 from app.models.llm_model import LlmModel
 from app.models.ai_assessment_log import AiAssessmentLog
+from app.models.framework_document import FrameworkDocument
 
 __all__ = [
     "User",
@@ -51,4 +52,5 @@ __all__ = [
     "AiProduct",
     "LlmModel",
     "AiAssessmentLog",
+    "FrameworkDocument",
 ]

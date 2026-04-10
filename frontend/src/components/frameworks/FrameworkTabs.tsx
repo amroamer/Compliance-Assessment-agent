@@ -9,6 +9,7 @@ const TABS = [
   { key: "scales", label: "Assessment Scales", path: "scales" },
   { key: "forms", label: "Assessment Forms", path: "forms" },
   { key: "scoring", label: "Scoring Rules", path: "scoring" },
+  { key: "documents", label: "Documents", path: "documents" },
 ];
 
 export function FrameworkTabs({ frameworkId }: { frameworkId: string }) {

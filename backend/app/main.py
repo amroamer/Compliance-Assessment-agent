@@ -21,6 +21,7 @@ from app.api.frameworks import router as frameworks_router
 from app.api.assessment_engine import router as engine_router
 from app.api.ai_products import router as ai_products_router
 from app.api.ai_assessment import router as ai_assessment_router
+from app.api.framework_docs import router as fw_docs_router
 from app.config import settings
 from app.core.security import get_password_hash
 from app.database import async_session, engine, Base
@@ -260,6 +261,7 @@ app.include_router(hierarchy_router)
 app.include_router(engine_router)
 app.include_router(ai_products_router)
 app.include_router(ai_assessment_router)
+app.include_router(fw_docs_router)
 
 
 @app.get("/api/health")

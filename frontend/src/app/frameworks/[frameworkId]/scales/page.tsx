@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { FrameworkTabs } from "@/components/frameworks/FrameworkTabs";
 import { useToast } from "@/components/ui/Toast";
-import { Plus, Edit, X, Save, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Edit, X, Save, Trash2, ChevronDown, ChevronRight, Download, Upload } from "lucide-react";
 
 interface ScaleLevel { id?: string; value: number; label: string; label_ar: string; description: string; description_ar: string; color: string; sort_order: number }
 interface Scale { id: string; name: string; name_ar: string | null; description: string | null; scale_type: string; is_cumulative: boolean; min_value: number | null; max_value: number | null; step: number | null; is_active: boolean; levels: ScaleLevel[] }
@@ -60,7 +60,23 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
             <h2 className="text-xl font-heading font-bold text-kpmg-navy">Assessment Scales</h2>
             <p className="text-sm text-kpmg-gray font-body mt-1">Define rating scales used when assessing this framework.</p>
           </div>
-          <button onClick={openCreate} className="kpmg-btn-primary text-xs px-4 py-2 flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> New Scale</button>
+          <div className="flex items-center gap-2">
+            <a href={`/api/frameworks/${frameworkId}/scales/export-excel`} className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"><Download className="w-3.5 h-3.5" /> Export Excel</a>
+            <label className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5 cursor-pointer">
+              <Upload className="w-3.5 h-3.5" /> Import Excel
+              <input type="file" accept=".xlsx" className="hidden" onChange={async (e) => {
+                const file = e.target.files?.[0]; if (!file) return;
+                const fd = new FormData(); fd.append("file", file);
+                const r = await fetch(`/api/frameworks/${frameworkId}/scales/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+                const d = await r.json(); if (r.ok) { toast(`Imported ${d.imported_scales} scales`, "success"); queryClient.invalidateQueries({ queryKey: ["scales"] }); } else { toast(d.detail || "Import failed", "error"); }
+                e.target.value = "";
+              }} />
+            </label>
+            <button onClick={async () => { if (!confirm("Delete ALL scales? This cannot be undone.")) return;
+              try { await api.delete(`/frameworks/${frameworkId}/scales/delete-all`); queryClient.invalidateQueries({ queryKey: ["scales"] }); toast("All scales deleted", "info"); } catch (e: any) { toast(e.message, "error"); }
+            }} className="kpmg-btn-danger text-xs px-3 py-2 flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" /> Delete All</button>
+            <button onClick={openCreate} className="kpmg-btn-primary text-xs px-4 py-2 flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> New Scale</button>
+          </div>
         </div>
 
         {isLoading ? <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-24 kpmg-skeleton" />)}</div> : !scales?.length ? (

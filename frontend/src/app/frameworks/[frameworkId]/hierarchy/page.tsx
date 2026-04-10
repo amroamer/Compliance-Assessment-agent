@@ -266,10 +266,25 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
                 className="rounded border-kpmg-input-border" />
               Show inactive
             </label>
-            <a href={`/api/frameworks/${frameworkId}/nodes/export`}
+            <a href={`/api/frameworks/${frameworkId}/nodes/export-excel`}
               className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5">
-              <Download className="w-3.5 h-3.5" /> Export CSV
+              <Download className="w-3.5 h-3.5" /> Export Excel
             </a>
+            <label className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5 cursor-pointer">
+              <Upload className="w-3.5 h-3.5" /> Import Excel
+              <input type="file" accept=".xlsx" className="hidden" onChange={async (e) => {
+                const file = e.target.files?.[0]; if (!file) return;
+                const fd = new FormData(); fd.append("file", file);
+                const r = await fetch(`/api/frameworks/${frameworkId}/nodes/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+                const d = await r.json(); if (r.ok) { toast(`Imported ${d.imported} nodes`, "success"); queryClient.invalidateQueries({ queryKey: ["nodes"] }); } else { toast(d.detail || "Import failed", "error"); }
+                e.target.value = "";
+              }} />
+            </label>
+            <button onClick={async () => { if (!confirm("Delete ALL hierarchy nodes? This cannot be undone.")) return;
+              try { await api.delete(`/frameworks/${frameworkId}/nodes/delete-all`); queryClient.invalidateQueries({ queryKey: ["nodes"] }); toast("All nodes deleted", "info"); } catch (e: any) { toast(e.message, "error"); }
+            }} className="kpmg-btn-danger text-xs px-3 py-2 flex items-center gap-1.5">
+              <Trash2 className="w-3.5 h-3.5" /> Delete All
+            </button>
             <button onClick={openAddRoot} className="kpmg-btn-primary text-xs px-4 py-2 flex items-center gap-1.5">
               <Plus className="w-3.5 h-3.5" /> Add Root Node
             </button>
