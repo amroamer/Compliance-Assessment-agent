@@ -74,6 +74,18 @@ async def delete_document(doc_id: uuid.UUID, db: AsyncSession = Depends(get_db),
 
 @router.delete("/api/frameworks/{fw_id}/hierarchy/delete-all", status_code=204)
 async def delete_all_nodes(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    from sqlalchemy import update
+    from app.models.assessment_engine import AssessmentResponse, AssessmentNodeScore
+    from app.models.ai_assessment_log import AiAssessmentLog
+    # Get all node IDs for this framework
+    node_ids = [n.id for n in (await db.execute(select(FrameworkNode).where(FrameworkNode.framework_id == fw_id))).scalars().all()]
+    if node_ids:
+        # Nullify/delete FK references
+        await db.execute(update(AssessmentResponse).where(AssessmentResponse.node_id.in_(node_ids)).values(node_id=None))
+        await db.execute(delete(AssessmentNodeScore).where(AssessmentNodeScore.node_id.in_(node_ids)))
+        await db.execute(delete(AiAssessmentLog).where(AiAssessmentLog.node_id.in_(node_ids)))
+    # Remove self-references then delete
+    await db.execute(update(FrameworkNode).where(FrameworkNode.framework_id == fw_id).values(parent_id=None))
     await db.execute(delete(FrameworkNode).where(FrameworkNode.framework_id == fw_id))
     await db.flush()
 
@@ -147,8 +159,11 @@ async def import_nodes_excel(fw_id: uuid.UUID, file: UploadFile = File(...), pre
 
 @router.delete("/api/frameworks/{fw_id}/bulk-scales/delete-all", status_code=204)
 async def delete_all_scales(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    from sqlalchemy import update
     scale_ids = [s.id for s in (await db.execute(select(AssessmentScale).where(AssessmentScale.framework_id == fw_id))).scalars().all()]
     if scale_ids:
+        # Nullify FK references from form templates first
+        await db.execute(update(AssessmentFormTemplate).where(AssessmentFormTemplate.scale_id.in_(scale_ids)).values(scale_id=None))
         await db.execute(delete(AssessmentScaleLevel).where(AssessmentScaleLevel.scale_id.in_(scale_ids)))
         await db.execute(delete(AssessmentScale).where(AssessmentScale.framework_id == fw_id))
     await db.flush()
@@ -212,8 +227,12 @@ async def import_scales_excel(fw_id: uuid.UUID, file: UploadFile = File(...), pr
 
 @router.delete("/api/frameworks/{fw_id}/bulk-forms/delete-all", status_code=204)
 async def delete_all_forms(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    from app.models.assessment_engine import AssessmentResponse
     tmpl_ids = [t.id for t in (await db.execute(select(AssessmentFormTemplate).where(AssessmentFormTemplate.framework_id == fw_id))).scalars().all()]
     if tmpl_ids:
+        # Nullify FK references from responses first
+        from sqlalchemy import update
+        await db.execute(update(AssessmentResponse).where(AssessmentResponse.template_id.in_(tmpl_ids)).values(template_id=None))
         await db.execute(delete(AssessmentFormField).where(AssessmentFormField.template_id.in_(tmpl_ids)))
         await db.execute(delete(AssessmentFormTemplate).where(AssessmentFormTemplate.framework_id == fw_id))
     await db.flush()

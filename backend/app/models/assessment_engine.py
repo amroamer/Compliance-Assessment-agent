@@ -217,9 +217,9 @@ class AssessmentResponse(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     instance_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("assessment_instances.id", ondelete="CASCADE"), nullable=False)
-    node_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("framework_nodes.id"), nullable=False)
+    node_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("framework_nodes.id", ondelete="SET NULL"), nullable=True)
     ai_product_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("ai_products.id", ondelete="SET NULL"), nullable=True)
-    template_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("assessment_form_templates.id"), nullable=False)
+    template_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("assessment_form_templates.id", ondelete="SET NULL"), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, draft, answered, reviewed, approved
     response_data: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     computed_score: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
