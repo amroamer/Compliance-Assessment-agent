@@ -95,7 +95,7 @@ async def export_nodes_excel(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db
         headers={"Content-Disposition": "attachment; filename=hierarchy.xlsx"})
 
 @router.post("/api/frameworks/{fw_id}/hierarchy/import-excel")
-async def import_nodes_excel(fw_id: uuid.UUID, file: UploadFile = File(...), db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+async def import_nodes_excel(fw_id: uuid.UUID, file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     content = await file.read()
     wb = load_workbook(BytesIO(content))
     ws = wb.active
@@ -104,9 +104,23 @@ async def import_nodes_excel(fw_id: uuid.UUID, file: UploadFile = File(...), db:
     for row in ws.iter_rows(min_row=2, values_only=True):
         r = dict(zip(headers, row))
         if r.get("reference_code"): rows.append(r)
-    # Create nodes — first pass: create all, second pass: link parents
+    # Check existing nodes
+    existing = (await db.execute(select(FrameworkNode.reference_code).where(FrameworkNode.framework_id == fw_id))).scalars().all()
+    existing_refs = set(existing)
+    new_rows = [r for r in rows if r["reference_code"] not in existing_refs]
+    duplicate_rows = [r for r in rows if r["reference_code"] in existing_refs]
+    # Preview mode: return what would be imported
+    if preview:
+        return {
+            "total_in_file": len(rows),
+            "new_items": [{"reference_code": r["reference_code"], "name": r.get("name", ""), "node_type": r.get("node_type", "")} for r in new_rows],
+            "duplicates": [{"reference_code": r["reference_code"], "name": r.get("name", "")} for r in duplicate_rows],
+            "will_import": len(new_rows),
+            "will_skip": len(duplicate_rows),
+        }
+    # Import only new nodes
     ref_to_id = {}
-    for i, r in enumerate(rows):
+    for i, r in enumerate(new_rows):
         node = FrameworkNode(framework_id=fw_id, reference_code=r["reference_code"], name=r.get("name", ""),
             name_ar=r.get("name_ar"), node_type=r.get("node_type", ""), description=r.get("description"),
             description_ar=r.get("description_ar"), guidance=r.get("guidance"), guidance_ar=r.get("guidance_ar"),
@@ -115,21 +129,23 @@ async def import_nodes_excel(fw_id: uuid.UUID, file: UploadFile = File(...), db:
         db.add(node)
         await db.flush()
         ref_to_id[r["reference_code"]] = node.id
-    # Link parents
-    for r in rows:
+    # Also load existing node IDs for parent linking
+    all_nodes = (await db.execute(select(FrameworkNode).where(FrameworkNode.framework_id == fw_id))).scalars().all()
+    all_ref_to_id = {n.reference_code: n.id for n in all_nodes}
+    all_ref_to_depth = {n.reference_code: n.depth for n in all_nodes}
+    for r in new_rows:
         parent_ref = r.get("parent_reference_code")
-        if parent_ref and parent_ref in ref_to_id:
+        if parent_ref and parent_ref in all_ref_to_id and r["reference_code"] in ref_to_id:
             node = (await db.execute(select(FrameworkNode).where(FrameworkNode.id == ref_to_id[r["reference_code"]]))).scalar_one()
-            parent = (await db.execute(select(FrameworkNode).where(FrameworkNode.id == ref_to_id[parent_ref]))).scalar_one()
-            node.parent_id = parent.id
-            node.depth = parent.depth + 1
+            node.parent_id = all_ref_to_id[parent_ref]
+            node.depth = (all_ref_to_depth.get(parent_ref, 0)) + 1
     await db.flush()
-    return {"imported": len(rows)}
+    return {"imported": len(new_rows), "skipped_duplicates": len(duplicate_rows)}
 
 
 # ============ SCALES: DELETE ALL, EXPORT EXCEL, IMPORT EXCEL ============
 
-@router.delete("/api/frameworks/{fw_id}/scales/delete-all", status_code=204)
+@router.delete("/api/frameworks/{fw_id}/bulk-scales/delete-all", status_code=204)
 async def delete_all_scales(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     scale_ids = [s.id for s in (await db.execute(select(AssessmentScale).where(AssessmentScale.framework_id == fw_id))).scalars().all()]
     if scale_ids:
@@ -137,7 +153,7 @@ async def delete_all_scales(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db)
         await db.execute(delete(AssessmentScale).where(AssessmentScale.framework_id == fw_id))
     await db.flush()
 
-@router.get("/api/frameworks/{fw_id}/scales/export-excel")
+@router.get("/api/frameworks/{fw_id}/bulk-scales/export-excel")
 async def export_scales_excel(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     from sqlalchemy.orm import selectinload
     scales = (await db.execute(select(AssessmentScale).options(selectinload(AssessmentScale.levels)).where(AssessmentScale.framework_id == fw_id))).scalars().all()
@@ -156,14 +172,13 @@ async def export_scales_excel(fw_id: uuid.UUID, db: AsyncSession = Depends(get_d
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=scales.xlsx"})
 
-@router.post("/api/frameworks/{fw_id}/scales/import-excel")
-async def import_scales_excel(fw_id: uuid.UUID, file: UploadFile = File(...), db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+@router.post("/api/frameworks/{fw_id}/bulk-scales/import-excel")
+async def import_scales_excel(fw_id: uuid.UUID, file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     from decimal import Decimal
     content = await file.read()
     wb = load_workbook(BytesIO(content))
     ws = wb.active
     headers = [cell.value for cell in ws[1]]
-    # Group by scale name
     scale_groups: dict[str, list] = {}
     for row in ws.iter_rows(min_row=2, values_only=True):
         r = dict(zip(headers, row))
@@ -171,8 +186,14 @@ async def import_scales_excel(fw_id: uuid.UUID, file: UploadFile = File(...), db
         if name:
             if name not in scale_groups: scale_groups[name] = {"meta": r, "levels": []}
             scale_groups[name]["levels"].append(r)
+    existing_names = set((await db.execute(select(AssessmentScale.name).where(AssessmentScale.framework_id == fw_id))).scalars().all())
+    new_scales = {k: v for k, v in scale_groups.items() if k not in existing_names}
+    dup_scales = {k: v for k, v in scale_groups.items() if k in existing_names}
+    if preview:
+        return {"total_in_file": len(scale_groups), "new_items": [{"name": k, "levels": len(v["levels"])} for k, v in new_scales.items()],
+                "duplicates": [{"name": k} for k in dup_scales], "will_import": len(new_scales), "will_skip": len(dup_scales)}
     created = 0
-    for name, data in scale_groups.items():
+    for name, data in new_scales.items():
         meta = data["meta"]
         scale = AssessmentScale(framework_id=fw_id, name=name, name_ar=meta.get("scale_name_ar"),
             scale_type=meta.get("scale_type", "ordinal"), is_cumulative=bool(meta.get("is_cumulative")))
@@ -184,12 +205,12 @@ async def import_scales_excel(fw_id: uuid.UUID, file: UploadFile = File(...), db
                 color=lv.get("level_color"), sort_order=i))
         created += 1
     await db.flush()
-    return {"imported_scales": created}
+    return {"imported_scales": created, "skipped_duplicates": len(dup_scales)}
 
 
 # ============ FORMS: DELETE ALL, EXPORT EXCEL, IMPORT EXCEL ============
 
-@router.delete("/api/frameworks/{fw_id}/form-templates/delete-all", status_code=204)
+@router.delete("/api/frameworks/{fw_id}/bulk-forms/delete-all", status_code=204)
 async def delete_all_forms(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     tmpl_ids = [t.id for t in (await db.execute(select(AssessmentFormTemplate).where(AssessmentFormTemplate.framework_id == fw_id))).scalars().all()]
     if tmpl_ids:
@@ -197,7 +218,7 @@ async def delete_all_forms(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db),
         await db.execute(delete(AssessmentFormTemplate).where(AssessmentFormTemplate.framework_id == fw_id))
     await db.flush()
 
-@router.get("/api/frameworks/{fw_id}/form-templates/export-excel")
+@router.get("/api/frameworks/{fw_id}/bulk-forms/export-excel")
 async def export_forms_excel(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     from sqlalchemy.orm import selectinload
     tmpls = (await db.execute(select(AssessmentFormTemplate).options(selectinload(AssessmentFormTemplate.fields), selectinload(AssessmentFormTemplate.node_type), selectinload(AssessmentFormTemplate.scale)).where(AssessmentFormTemplate.framework_id == fw_id))).scalars().all()
@@ -217,16 +238,14 @@ async def export_forms_excel(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=forms.xlsx"})
 
-@router.post("/api/frameworks/{fw_id}/form-templates/import-excel")
-async def import_forms_excel(fw_id: uuid.UUID, file: UploadFile = File(...), db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+@router.post("/api/frameworks/{fw_id}/bulk-forms/import-excel")
+async def import_forms_excel(fw_id: uuid.UUID, file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     content = await file.read()
     wb = load_workbook(BytesIO(content))
     ws = wb.active
     headers = [cell.value for cell in ws[1]]
-    # Load node types and scales for lookup
     node_types = {nt.name: nt.id for nt in (await db.execute(select(NodeType).where(NodeType.framework_id == fw_id))).scalars().all()}
     scales = {s.name: s.id for s in (await db.execute(select(AssessmentScale).where(AssessmentScale.framework_id == fw_id))).scalars().all()}
-    # Group by template name
     tmpl_groups: dict[str, list] = {}
     for row in ws.iter_rows(min_row=2, values_only=True):
         r = dict(zip(headers, row))
@@ -234,8 +253,14 @@ async def import_forms_excel(fw_id: uuid.UUID, file: UploadFile = File(...), db:
         if name:
             if name not in tmpl_groups: tmpl_groups[name] = {"meta": r, "fields": []}
             tmpl_groups[name]["fields"].append(r)
+    existing_names = set((await db.execute(select(AssessmentFormTemplate.name).where(AssessmentFormTemplate.framework_id == fw_id))).scalars().all())
+    new_tmpls = {k: v for k, v in tmpl_groups.items() if k not in existing_names}
+    dup_tmpls = {k: v for k, v in tmpl_groups.items() if k in existing_names}
+    if preview:
+        return {"total_in_file": len(tmpl_groups), "new_items": [{"name": k, "fields": len(v["fields"])} for k, v in new_tmpls.items()],
+                "duplicates": [{"name": k} for k in dup_tmpls], "will_import": len(new_tmpls), "will_skip": len(dup_tmpls)}
     created = 0
-    for name, data in tmpl_groups.items():
+    for name, data in new_tmpls.items():
         meta = data["meta"]
         nt_id = node_types.get(meta.get("node_type_name"))
         scale_id = scales.get(meta.get("scale_name"))
@@ -248,17 +273,17 @@ async def import_forms_excel(fw_id: uuid.UUID, file: UploadFile = File(...), db:
                 sort_order=f.get("sort_order") or 0, placeholder=f.get("placeholder"), help_text=f.get("help_text")))
         created += 1
     await db.flush()
-    return {"imported_templates": created}
+    return {"imported_templates": created, "skipped_duplicates": len(dup_tmpls)}
 
 
 # ============ SCORING RULES: DELETE ALL, EXPORT EXCEL, IMPORT EXCEL ============
 
-@router.delete("/api/frameworks/{fw_id}/aggregation-rules/delete-all", status_code=204)
+@router.delete("/api/frameworks/{fw_id}/bulk-scoring/delete-all", status_code=204)
 async def delete_all_rules(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     await db.execute(delete(AggregationRule).where(AggregationRule.framework_id == fw_id))
     await db.flush()
 
-@router.get("/api/frameworks/{fw_id}/aggregation-rules/export-excel")
+@router.get("/api/frameworks/{fw_id}/bulk-scoring/export-excel")
 async def export_rules_excel(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     from sqlalchemy.orm import selectinload
     rules = (await db.execute(select(AggregationRule).options(selectinload(AggregationRule.parent_node_type), selectinload(AggregationRule.child_node_type)).where(AggregationRule.framework_id == fw_id))).scalars().all()
@@ -275,19 +300,31 @@ async def export_rules_excel(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=scoring_rules.xlsx"})
 
-@router.post("/api/frameworks/{fw_id}/aggregation-rules/import-excel")
-async def import_rules_excel(fw_id: uuid.UUID, file: UploadFile = File(...), db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+@router.post("/api/frameworks/{fw_id}/bulk-scoring/import-excel")
+async def import_rules_excel(fw_id: uuid.UUID, file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     from decimal import Decimal
     content = await file.read()
     wb = load_workbook(BytesIO(content))
     ws = wb.active
     headers = [cell.value for cell in ws[1]]
     node_types = {nt.name: nt.id for nt in (await db.execute(select(NodeType).where(NodeType.framework_id == fw_id))).scalars().all()}
-    created = 0
+    # Check existing rules
+    from sqlalchemy.orm import selectinload
+    existing_rules = (await db.execute(select(AggregationRule).options(selectinload(AggregationRule.parent_node_type), selectinload(AggregationRule.child_node_type)).where(AggregationRule.framework_id == fw_id))).scalars().all()
+    existing_pairs = {(r.parent_node_type.name if r.parent_node_type else "", r.child_node_type.name if r.child_node_type else "") for r in existing_rules}
+    rows = []
     for row in ws.iter_rows(min_row=2, values_only=True):
         r = dict(zip(headers, row))
-        parent_id = node_types.get(r.get("parent_node_type"))
-        child_id = node_types.get(r.get("child_node_type"))
+        if r.get("parent_node_type") and r.get("child_node_type"): rows.append(r)
+    new_rows = [r for r in rows if (r["parent_node_type"], r["child_node_type"]) not in existing_pairs]
+    dup_rows = [r for r in rows if (r["parent_node_type"], r["child_node_type"]) in existing_pairs]
+    if preview:
+        return {"total_in_file": len(rows), "new_items": [{"parent": r["parent_node_type"], "child": r["child_node_type"], "method": r.get("method")} for r in new_rows],
+                "duplicates": [{"parent": r["parent_node_type"], "child": r["child_node_type"]} for r in dup_rows], "will_import": len(new_rows), "will_skip": len(dup_rows)}
+    created = 0
+    for r in new_rows:
+        parent_id = node_types.get(r["parent_node_type"])
+        child_id = node_types.get(r["child_node_type"])
         if parent_id and child_id:
             db.add(AggregationRule(framework_id=fw_id, parent_node_type_id=parent_id, child_node_type_id=child_id,
                 method=r.get("method", "simple_average"),
@@ -296,4 +333,4 @@ async def import_rules_excel(fw_id: uuid.UUID, file: UploadFile = File(...), db:
                 created_at=datetime.now(timezone.utc), updated_at=datetime.now(timezone.utc)))
             created += 1
     await db.flush()
-    return {"imported_rules": created}
+    return {"imported_rules": created, "skipped_duplicates": len(dup_rows)}

@@ -32,7 +32,7 @@ export default function FormsPage({ params }: { params: Promise<{ frameworkId: s
           <p className="text-sm text-kpmg-gray font-body">Form templates define which fields appear when assessing each node type.</p>
           <div className="flex items-center gap-2">
             <button onClick={async () => {
-              const r = await fetch(`/api/frameworks/${frameworkId}/form-templates/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+              const r = await fetch(`/api/frameworks/${frameworkId}/bulk-forms/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
               const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "forms.xlsx"; a.click(); URL.revokeObjectURL(u);
             }} className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"><Download className="w-3.5 h-3.5" /> Export Excel</button>
             <label className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5 cursor-pointer">
@@ -40,13 +40,25 @@ export default function FormsPage({ params }: { params: Promise<{ frameworkId: s
               <input type="file" accept=".xlsx" className="hidden" onChange={async (e) => {
                 const file = e.target.files?.[0]; if (!file) return;
                 const fd = new FormData(); fd.append("file", file);
-                const r = await fetch(`/api/frameworks/${frameworkId}/form-templates/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
-                const d = await r.json(); if (r.ok) { toast(`Imported ${d.imported_templates} templates`, "success"); queryClient.invalidateQueries({ queryKey: ["form-templates"] }); } else { toast(d.detail || "Import failed", "error"); }
+                const auth = { Authorization: `Bearer ${localStorage.getItem("token")}` };
+                const prev = await fetch(`/api/frameworks/${frameworkId}/bulk-forms/import-excel?preview=true`, { method: "POST", headers: auth, body: fd });
+                const p = await prev.json();
+                if (!prev.ok) { toast(p.detail || "Preview failed", "error"); e.target.value = ""; return; }
+                const msg = `Found ${p.total_in_file} templates:
+• ${p.will_import} new to import
+• ${p.will_skip} duplicates (skipped)
+
+Proceed?`;
+                if (!confirm(msg)) { e.target.value = ""; return; }
+                const fd2 = new FormData(); fd2.append("file", file);
+                const r = await fetch(`/api/frameworks/${frameworkId}/bulk-forms/import-excel`, { method: "POST", headers: auth, body: fd2 });
+                const d = await r.json();
+                if (r.ok) { toast(`Imported ${d.imported_templates} templates (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["form-templates"] }); } else { toast(d.detail || "Import failed", "error"); }
                 e.target.value = "";
               }} />
             </label>
             <button onClick={async () => { if (!confirm("Delete ALL form templates? This cannot be undone.")) return;
-              try { await api.delete(`/frameworks/${frameworkId}/form-templates/delete-all`); queryClient.invalidateQueries({ queryKey: ["form-templates"] }); toast("All forms deleted", "info"); } catch (e: any) { toast(e.message, "error"); }
+              try { await api.delete(`/frameworks/${frameworkId}/bulk-forms/delete-all`); queryClient.invalidateQueries({ queryKey: ["form-templates"] }); toast("All forms deleted", "info"); } catch (e: any) { toast(e.message, "error"); }
             }} className="kpmg-btn-danger text-xs px-3 py-2 flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" /> Delete All</button>
           </div>
         </div>

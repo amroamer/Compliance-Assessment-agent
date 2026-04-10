@@ -277,8 +277,18 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
               <input type="file" accept=".xlsx" className="hidden" onChange={async (e) => {
                 const file = e.target.files?.[0]; if (!file) return;
                 const fd = new FormData(); fd.append("file", file);
-                const r = await fetch(`/api/frameworks/${frameworkId}/hierarchy/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
-                const d = await r.json(); if (r.ok) { toast(`Imported ${d.imported} nodes`, "success"); queryClient.invalidateQueries({ queryKey: ["nodes"] }); } else { toast(d.detail || "Import failed", "error"); }
+                const auth = { Authorization: `Bearer ${localStorage.getItem("token")}` };
+                // Step 1: Preview
+                const prev = await fetch(`/api/frameworks/${frameworkId}/hierarchy/import-excel?preview=true`, { method: "POST", headers: auth, body: fd });
+                const p = await prev.json();
+                if (!prev.ok) { toast(p.detail || "Preview failed", "error"); e.target.value = ""; return; }
+                const msg = `Found ${p.total_in_file} items in file:\n• ${p.will_import} new items to import\n• ${p.will_skip} duplicates (will be skipped)\n${p.duplicates?.length ? "\nDuplicates: " + p.duplicates.map((d: any) => d.reference_code).join(", ") : ""}\n\nProceed with import?`;
+                if (!confirm(msg)) { e.target.value = ""; return; }
+                // Step 2: Actual import
+                const fd2 = new FormData(); fd2.append("file", file);
+                const r = await fetch(`/api/frameworks/${frameworkId}/hierarchy/import-excel`, { method: "POST", headers: auth, body: fd2 });
+                const d = await r.json();
+                if (r.ok) { toast(`Imported ${d.imported} nodes (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["nodes"] }); } else { toast(d.detail || "Import failed", "error"); }
                 e.target.value = "";
               }} />
             </label>

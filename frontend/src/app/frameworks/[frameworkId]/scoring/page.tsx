@@ -65,7 +65,7 @@ export default function ScoringPage({ params }: { params: Promise<{ frameworkId:
           </div>
           <div className="flex items-center gap-2">
             <button onClick={async () => {
-              const r = await fetch(`/api/frameworks/${frameworkId}/aggregation-rules/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+              const r = await fetch(`/api/frameworks/${frameworkId}/bulk-scoring/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
               const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "scoring_rules.xlsx"; a.click(); URL.revokeObjectURL(u);
             }} className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"><Download className="w-3.5 h-3.5" /> Export Excel</button>
             <label className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5 cursor-pointer">
@@ -73,13 +73,25 @@ export default function ScoringPage({ params }: { params: Promise<{ frameworkId:
               <input type="file" accept=".xlsx" className="hidden" onChange={async (e) => {
                 const file = e.target.files?.[0]; if (!file) return;
                 const fd = new FormData(); fd.append("file", file);
-                const r = await fetch(`/api/frameworks/${frameworkId}/aggregation-rules/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
-                const d = await r.json(); if (r.ok) { toast(`Imported ${d.imported_rules} rules`, "success"); queryClient.invalidateQueries({ queryKey: ["agg-rules"] }); } else { toast(d.detail || "Import failed", "error"); }
+                const auth = { Authorization: `Bearer ${localStorage.getItem("token")}` };
+                const prev = await fetch(`/api/frameworks/${frameworkId}/bulk-scoring/import-excel?preview=true`, { method: "POST", headers: auth, body: fd });
+                const p = await prev.json();
+                if (!prev.ok) { toast(p.detail || "Preview failed", "error"); e.target.value = ""; return; }
+                const msg = `Found ${p.total_in_file} rules:
+• ${p.will_import} new to import
+• ${p.will_skip} duplicates (skipped)
+
+Proceed?`;
+                if (!confirm(msg)) { e.target.value = ""; return; }
+                const fd2 = new FormData(); fd2.append("file", file);
+                const r = await fetch(`/api/frameworks/${frameworkId}/bulk-scoring/import-excel`, { method: "POST", headers: auth, body: fd2 });
+                const d = await r.json();
+                if (r.ok) { toast(`Imported ${d.imported_rules} rules (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["agg-rules"] }); } else { toast(d.detail || "Import failed", "error"); }
                 e.target.value = "";
               }} />
             </label>
             <button onClick={async () => { if (!confirm("Delete ALL scoring rules? This cannot be undone.")) return;
-              try { await api.delete(`/frameworks/${frameworkId}/aggregation-rules/delete-all`); queryClient.invalidateQueries({ queryKey: ["agg-rules"] }); toast("All rules deleted", "info"); } catch (e: any) { toast(e.message, "error"); }
+              try { await api.delete(`/frameworks/${frameworkId}/bulk-scoring/delete-all`); queryClient.invalidateQueries({ queryKey: ["agg-rules"] }); toast("All rules deleted", "info"); } catch (e: any) { toast(e.message, "error"); }
             }} className="kpmg-btn-danger text-xs px-3 py-2 flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" /> Delete All</button>
             <button onClick={openCreate} className="kpmg-btn-primary text-xs px-4 py-2 flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> New Rule</button>
           </div>
