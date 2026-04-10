@@ -91,7 +91,7 @@ export default function AiProductsPage({ params }: { params: Promise<{ entityId:
                     <td className="px-5 py-4 text-center"><span className={p.status === "Active" ? "kpmg-status-complete" : "kpmg-status-not-started"}>{p.status}</span></td>
                     <td className="px-5 py-4"><div className="flex items-center justify-end gap-1">
                       <button onClick={async (e) => { e.stopPropagation(); openEdit(p); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition"><Edit className="w-4 h-4" /></button>
-                      <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Delete", message: `Delete "${${p.name}}"? This will also remove all assessment responses for this product.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(p.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Delete", message: `Delete "${p.name}"? This will also remove all assessment responses for this product.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(p.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition"><Trash2 className="w-4 h-4" /></button>
                     </div></td>
                   </tr>
                 ))}

@@ -89,7 +89,7 @@ export default function AssessedEntitiesPage() {
                       <button onClick={async (e2) => { e2.stopPropagation(); router.push(`/entities/${e.id}/overview`); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-blue rounded-btn transition" title="View Dashboard"><Eye className="w-4 h-4" /></button>
                       <button onClick={async (e2) => { e2.stopPropagation(); router.push(`/settings/assessed-entities/${e.id}/ai-products`); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="AI Products"><Cpu className="w-4 h-4" /></button>
                       <button onClick={async (e2) => { e2.stopPropagation(); openEdit(e); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Edit"><Edit className="w-4 h-4" /></button>
-                      {e.status === "Active" && <button onClick={async (e2) => { e2.stopPropagation(); if (await confirm({ title: "Deactivate", message: `Deactivate "${${e.name}}"?`, variant: "warning", confirmLabel: "Deactivate" })) deactivate.mutate(e.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Deactivate"><Ban className="w-4 h-4" /></button>}
+                      {e.status === "Active" && <button onClick={async (e2) => { e2.stopPropagation(); if (await confirm({ title: "Deactivate", message: `Deactivate "${e.name}"?`, variant: "warning", confirmLabel: "Deactivate" })) deactivate.mutate(e.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Deactivate"><Ban className="w-4 h-4" /></button>}
                     </div></td>
                   </tr>
                 ))}

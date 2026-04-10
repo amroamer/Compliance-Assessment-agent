@@ -105,7 +105,7 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
                           <a href={`/api/frameworks/documents/${d.id}/download`} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Download">
                             <Download className="w-4 h-4" />
                           </a>
-                          <button onClick={async () => { if (await confirm({ title: "Delete", message: `Delete "${${d.file_name}}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(d.id); }}
+                          <button onClick={async () => { if (await confirm({ title: "Delete", message: `Delete "${d.file_name}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(d.id); }}
                             className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Delete">
                             <Trash2 className="w-4 h-4" />
                           </button>

@@ -91,7 +91,7 @@ export default function LlmModelsPage() {
                     {testing === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                   </button>
                   <button onClick={async (e) => { e.stopPropagation(); openEdit(m); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Edit"><Edit className="w-4 h-4" /></button>
-                  <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Remove", message: `Remove "${${m.name}}"?`, variant: "danger", confirmLabel: "Remove" })) deleteMutation.mutate(m.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Remove"><Trash2 className="w-4 h-4" /></button>
+                  <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Remove", message: `Remove "${m.name}"?`, variant: "danger", confirmLabel: "Remove" })) deleteMutation.mutate(m.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Remove"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
             ))}

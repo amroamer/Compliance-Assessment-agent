@@ -225,7 +225,7 @@ export default function RegulatoryEntitiesPage() {
                           <Edit className="w-4 h-4" />
                         </button>
                         {entity.status === "Active" && (
-                          <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Deactivate", message: `Deactivate "${${entity.abbreviation}}"?`, variant: "warning", confirmLabel: "Deactivate" })) deactivateMutation.mutate(entity.id); }}
+                          <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Deactivate", message: `Deactivate "${entity.abbreviation}"?`, variant: "warning", confirmLabel: "Deactivate" })) deactivateMutation.mutate(entity.id); }}
                             className="p-2 text-kpmg-gray hover:text-status-error hover:bg-[#FEF2F2] rounded-btn transition" title="Deactivate">
                             <Ban className="w-4 h-4" />
                           </button>

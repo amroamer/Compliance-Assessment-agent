@@ -625,7 +625,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                                 </div>
                                 <a href={ev.download_url} className="p-1.5 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Download"><Download className="w-4 h-4" /></a>
                                 {!isStatusLocked && !isClient && (
-                                  <button onClick={async () => { if (await confirm({ title: "Delete", message: `Delete "${${ev.file_name}}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteEvidence(ev.id); }}
+                                  <button onClick={async () => { if (await confirm({ title: "Delete", message: `Delete "${ev.file_name}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteEvidence(ev.id); }}
                                     className="p-1.5 text-kpmg-placeholder hover:text-status-error rounded-btn transition opacity-0 group-hover:opacity-100" title="Delete"><Trash2 className="w-4 h-4" /></button>
                                 )}
                               </div>

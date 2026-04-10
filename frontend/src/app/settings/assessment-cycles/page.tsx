@@ -173,7 +173,7 @@ export default function AssessmentCyclesPage() {
                         <button onClick={async (e) => { e.stopPropagation(); openEdit(c); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light hover:bg-kpmg-hover-bg rounded-btn transition" title="Edit">
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Delete", message: `Delete "${${c.cycle_name}}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(c.id); }}
+                        <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Delete", message: `Delete "${c.cycle_name}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(c.id); }}
                           className="p-2 text-kpmg-placeholder hover:text-status-error hover:bg-[#FEF2F2] rounded-btn transition" title="Delete">
                           <Trash2 className="w-4 h-4" />
                         </button>

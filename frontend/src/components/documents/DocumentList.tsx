@@ -110,7 +110,7 @@ export function DocumentList({ productId, domainId, subRequirementId }: Props) {
               {user?.role !== "viewer" && (
                 <button
                   onClick={() => {
-                    if (await confirm({ title: "Delete", message: `Delete "${${doc.file_name}}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(doc.id);
+                    if (await confirm({ title: "Delete", message: `Delete "${doc.file_name}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(doc.id);
                   }}
                   className="p-1 text-gray-400 hover:text-red-500 rounded transition"
                   title="Delete"
