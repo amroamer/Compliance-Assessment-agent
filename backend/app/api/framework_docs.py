@@ -477,3 +477,204 @@ async def import_entities_excel(file: UploadFile = File(...), preview: bool = Fa
         created += 1
     await db.flush()
     return {"imported": created, "skipped_duplicates": len(dup_rows)}
+
+
+# ============ USERS: EXPORT & IMPORT ============
+
+from app.models.user import User as UserModel
+from app.core.security import get_password_hash
+
+@router.get("/api/users/export-excel")
+async def export_users_excel(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    users = (await db.execute(select(UserModel).order_by(UserModel.name))).scalars().all()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Users"
+    headers = ["name", "email", "role", "is_active", "assessed_entity_id"]
+    for i, h in enumerate(headers, 1): ws.cell(row=1, column=i, value=h)
+    for row_idx, u in enumerate(users, 2):
+        vals = [u.name, u.email, u.role, u.is_active, str(u.assessed_entity_id) if u.assessed_entity_id else ""]
+        for i, v in enumerate(vals, 1): ws.cell(row=row_idx, column=i, value=v)
+    buf = BytesIO(); wb.save(buf); buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=users.xlsx"})
+
+@router.post("/api/users/import-excel")
+async def import_users_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    content = await file.read()
+    wb = load_workbook(BytesIO(content))
+    ws = wb.active
+    headers_row = [cell.value for cell in ws[1]]
+    rows = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        r = dict(zip(headers_row, row))
+        if r.get("email"): rows.append(r)
+    existing_emails = set((await db.execute(select(UserModel.email))).scalars().all())
+    new_rows = [r for r in rows if r["email"] not in existing_emails]
+    dup_rows = [r for r in rows if r["email"] in existing_emails]
+    if preview:
+        return {"total_in_file": len(rows), "new_items": [{"name": r.get("name", ""), "email": r["email"], "role": r.get("role", "")} for r in new_rows],
+                "duplicates": [{"name": r.get("name", ""), "email": r["email"]} for r in dup_rows], "will_import": len(new_rows), "will_skip": len(dup_rows)}
+    created = 0
+    for r in new_rows:
+        role = r.get("role", "kpmg_user")
+        if role not in ("admin", "kpmg_user", "client"): role = "kpmg_user"
+        pwd = r.get("password") or "DefaultPass123!"
+        db.add(UserModel(name=r.get("name", ""), email=r["email"], hashed_password=get_password_hash(pwd),
+            role=role, is_active=r.get("is_active", True) if isinstance(r.get("is_active"), bool) else True))
+        created += 1
+    await db.flush()
+    return {"imported": created, "skipped_duplicates": len(dup_rows)}
+
+
+# ============ REGULATORY ENTITIES: EXPORT & IMPORT ============
+
+from app.models.regulatory_entity import RegulatoryEntity
+
+@router.get("/api/regulatory-entities/export-excel")
+async def export_reg_entities_excel(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    entities = (await db.execute(select(RegulatoryEntity).order_by(RegulatoryEntity.name))).scalars().all()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Regulatory Entities"
+    headers = ["name", "name_ar", "abbreviation", "description", "website", "status"]
+    for i, h in enumerate(headers, 1): ws.cell(row=1, column=i, value=h)
+    for row_idx, e in enumerate(entities, 2):
+        vals = [e.name, e.name_ar, e.abbreviation, e.description, e.website, e.status]
+        for i, v in enumerate(vals, 1): ws.cell(row=row_idx, column=i, value=v)
+    buf = BytesIO(); wb.save(buf); buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=regulatory_entities.xlsx"})
+
+@router.post("/api/regulatory-entities/import-excel")
+async def import_reg_entities_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    content = await file.read()
+    wb = load_workbook(BytesIO(content))
+    ws = wb.active
+    headers_row = [cell.value for cell in ws[1]]
+    rows = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        r = dict(zip(headers_row, row))
+        if r.get("abbreviation"): rows.append(r)
+    existing = set((await db.execute(select(RegulatoryEntity.abbreviation))).scalars().all())
+    new_rows = [r for r in rows if r["abbreviation"] not in existing]
+    dup_rows = [r for r in rows if r["abbreviation"] in existing]
+    if preview:
+        return {"total_in_file": len(rows), "new_items": [{"name": r.get("name", ""), "abbreviation": r["abbreviation"]} for r in new_rows],
+                "duplicates": [{"name": r.get("name", ""), "abbreviation": r["abbreviation"]} for r in dup_rows], "will_import": len(new_rows), "will_skip": len(dup_rows)}
+    created = 0
+    for r in new_rows:
+        db.add(RegulatoryEntity(name=r.get("name", ""), name_ar=r.get("name_ar"), abbreviation=r["abbreviation"],
+            description=r.get("description"), website=r.get("website"), status=r.get("status") or "Active"))
+        created += 1
+    await db.flush()
+    return {"imported": created, "skipped_duplicates": len(dup_rows)}
+
+
+# ============ ASSESSMENT CYCLES: EXPORT & IMPORT ============
+
+from app.models.assessment_cycle_config import AssessmentCycleConfig
+from app.models.compliance_framework import ComplianceFramework
+
+@router.get("/api/assessment-cycle-configs/export-excel")
+async def export_cycles_excel(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from sqlalchemy.orm import selectinload
+    cycles = (await db.execute(select(AssessmentCycleConfig).options(selectinload(AssessmentCycleConfig.framework)).order_by(AssessmentCycleConfig.cycle_name))).scalars().all()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Assessment Cycles"
+    headers = ["cycle_name", "cycle_name_ar", "framework_abbreviation", "start_date", "end_date", "status", "description"]
+    for i, h in enumerate(headers, 1): ws.cell(row=1, column=i, value=h)
+    for row_idx, c in enumerate(cycles, 2):
+        fw_abbr = c.framework.abbreviation if c.framework else ""
+        vals = [c.cycle_name, c.cycle_name_ar, fw_abbr,
+                c.start_date.isoformat() if c.start_date else "", c.end_date.isoformat() if c.end_date else "",
+                c.status, c.description]
+        for i, v in enumerate(vals, 1): ws.cell(row=row_idx, column=i, value=v)
+    buf = BytesIO(); wb.save(buf); buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=assessment_cycles.xlsx"})
+
+@router.post("/api/assessment-cycle-configs/import-excel")
+async def import_cycles_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    from datetime import date as date_type
+    content = await file.read()
+    wb = load_workbook(BytesIO(content))
+    ws = wb.active
+    headers_row = [cell.value for cell in ws[1]]
+    rows = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        r = dict(zip(headers_row, row))
+        if r.get("cycle_name"): rows.append(r)
+    existing = set((await db.execute(select(AssessmentCycleConfig.cycle_name))).scalars().all())
+    new_rows = [r for r in rows if r["cycle_name"] not in existing]
+    dup_rows = [r for r in rows if r["cycle_name"] in existing]
+    if preview:
+        return {"total_in_file": len(rows), "new_items": [{"name": r["cycle_name"], "framework": r.get("framework_abbreviation", "")} for r in new_rows],
+                "duplicates": [{"name": r["cycle_name"]} for r in dup_rows], "will_import": len(new_rows), "will_skip": len(dup_rows)}
+    fws = {fw.abbreviation: fw.id for fw in (await db.execute(select(ComplianceFramework))).scalars().all()}
+    created = 0
+    for r in new_rows:
+        fw_id = fws.get(r.get("framework_abbreviation"))
+        start = None
+        if r.get("start_date"):
+            try: start = date_type.fromisoformat(str(r["start_date"])[:10])
+            except: pass
+        end = None
+        if r.get("end_date"):
+            try: end = date_type.fromisoformat(str(r["end_date"])[:10])
+            except: pass
+        db.add(AssessmentCycleConfig(cycle_name=r["cycle_name"], cycle_name_ar=r.get("cycle_name_ar"),
+            framework_id=fw_id, start_date=start, end_date=end,
+            status=r.get("status") or "Inactive", description=r.get("description")))
+        created += 1
+    await db.flush()
+    return {"imported": created, "skipped_duplicates": len(dup_rows)}
+
+
+# ============ FRAMEWORKS: EXPORT & IMPORT ============
+
+@router.get("/api/frameworks/export-excel")
+async def export_frameworks_excel(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from sqlalchemy.orm import selectinload
+    fws = (await db.execute(select(ComplianceFramework).options(selectinload(ComplianceFramework.entity)).order_by(ComplianceFramework.name))).scalars().all()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Frameworks"
+    headers = ["name", "abbreviation", "name_ar", "description", "version", "status", "icon", "regulatory_entity_abbreviation", "requires_product_assessment"]
+    for i, h in enumerate(headers, 1): ws.cell(row=1, column=i, value=h)
+    for row_idx, fw in enumerate(fws, 2):
+        reg_abbr = fw.entity.abbreviation if fw.entity else ""
+        vals = [fw.name, fw.abbreviation, fw.name_ar, fw.description, fw.version, fw.status, fw.icon, reg_abbr, fw.requires_product_assessment]
+        for i, v in enumerate(vals, 1): ws.cell(row=row_idx, column=i, value=v)
+    buf = BytesIO(); wb.save(buf); buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=frameworks.xlsx"})
+
+@router.post("/api/frameworks/import-excel")
+async def import_frameworks_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    content = await file.read()
+    wb = load_workbook(BytesIO(content))
+    ws = wb.active
+    headers_row = [cell.value for cell in ws[1]]
+    rows = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        r = dict(zip(headers_row, row))
+        if r.get("abbreviation"): rows.append(r)
+    existing = set((await db.execute(select(ComplianceFramework.abbreviation))).scalars().all())
+    new_rows = [r for r in rows if r["abbreviation"] not in existing]
+    dup_rows = [r for r in rows if r["abbreviation"] in existing]
+    if preview:
+        return {"total_in_file": len(rows), "new_items": [{"name": r.get("name", ""), "abbreviation": r["abbreviation"]} for r in new_rows],
+                "duplicates": [{"name": r.get("name", ""), "abbreviation": r["abbreviation"]} for r in dup_rows], "will_import": len(new_rows), "will_skip": len(dup_rows)}
+    reg_entities = {re.abbreviation: re.id for re in (await db.execute(select(RegulatoryEntity))).scalars().all()}
+    created = 0
+    for r in new_rows:
+        reg_id = reg_entities.get(r.get("regulatory_entity_abbreviation")) if r.get("regulatory_entity_abbreviation") else None
+        db.add(ComplianceFramework(name=r.get("name", ""), abbreviation=r["abbreviation"], name_ar=r.get("name_ar"),
+            description=r.get("description"), version=r.get("version"), status=r.get("status") or "Active",
+            icon=r.get("icon") or "book", entity_id=reg_id,
+            requires_product_assessment=bool(r.get("requires_product_assessment"))))
+        created += 1
+    await db.flush()
+    return {"imported": created, "skipped_duplicates": len(dup_rows)}
