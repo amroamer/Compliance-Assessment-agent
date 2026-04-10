@@ -61,7 +61,10 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
             <p className="text-sm text-kpmg-gray font-body mt-1">Define rating scales used when assessing this framework.</p>
           </div>
           <div className="flex items-center gap-2">
-            <a href={`/api/frameworks/${frameworkId}/scales/export-excel`} className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"><Download className="w-3.5 h-3.5" /> Export Excel</a>
+            <button onClick={async () => {
+              const r = await fetch(`/api/frameworks/${frameworkId}/scales/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+              const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "scales.xlsx"; a.click(); URL.revokeObjectURL(u);
+            }} className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"><Download className="w-3.5 h-3.5" /> Export Excel</button>
             <label className="kpmg-btn-secondary text-xs px-3 py-2 flex items-center gap-1.5 cursor-pointer">
               <Upload className="w-3.5 h-3.5" /> Import Excel
               <input type="file" accept=".xlsx" className="hidden" onChange={async (e) => {
