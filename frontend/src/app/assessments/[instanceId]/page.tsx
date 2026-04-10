@@ -623,7 +623,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                                   <p className="text-sm text-kpmg-navy font-medium truncate">{ev.file_name}</p>
                                   <p className="text-[10px] text-kpmg-placeholder">{sizeStr} &bull; {new Date(ev.uploaded_at).toLocaleDateString()}</p>
                                 </div>
-                                <a href={ev.download_url} className="p-1.5 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Download"><Download className="w-4 h-4" /></a>
+                                <button onClick={async () => { const r = await fetch(ev.download_url, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = ev.file_name; a.click(); URL.revokeObjectURL(u); }} className="p-1.5 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Download"><Download className="w-4 h-4" /></button>
                                 {!isStatusLocked && !isClient && (
                                   <button onClick={async () => { if (await confirm({ title: "Delete", message: `Delete "${ev.file_name}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteEvidence(ev.id); }}
                                     className="p-1.5 text-kpmg-placeholder hover:text-status-error rounded-btn transition opacity-0 group-hover:opacity-100" title="Delete"><Trash2 className="w-4 h-4" /></button>

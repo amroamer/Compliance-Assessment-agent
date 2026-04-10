@@ -102,9 +102,12 @@ export default function DocumentsPage({ params }: { params: Promise<{ frameworkI
                       <td className="px-5 py-4 text-xs text-kpmg-placeholder">{new Date(d.uploaded_at).toLocaleDateString()}</td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-1">
-                          <a href={`/api/frameworks/documents/${d.id}/download`} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Download">
+                          <button onClick={async () => {
+                            const r = await fetch(`/api/frameworks/documents/${d.id}/download`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+                            const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = d.file_name; a.click(); URL.revokeObjectURL(u);
+                          }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Download">
                             <Download className="w-4 h-4" />
-                          </a>
+                          </button>
                           <button onClick={async () => { if (await confirm({ title: "Delete", message: `Delete "${d.file_name}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(d.id); }}
                             className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Delete">
                             <Trash2 className="w-4 h-4" />
