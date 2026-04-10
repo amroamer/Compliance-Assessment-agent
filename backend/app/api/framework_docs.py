@@ -417,3 +417,63 @@ async def import_rules_excel(fw_id: uuid.UUID, file: UploadFile = File(...), pre
             created += 1
     await db.flush()
     return {"imported_rules": created, "skipped_duplicates": len(dup_rows)}
+
+
+# ============ ASSESSED ENTITIES: EXPORT & IMPORT ============
+
+from app.models.assessment_engine import AssessedEntity
+
+@router.get("/api/assessed-entities/export-excel")
+async def export_entities_excel(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.models.regulatory_entity import RegulatoryEntity
+    from sqlalchemy.orm import selectinload
+    entities = (await db.execute(select(AssessedEntity).options(selectinload(AssessedEntity.regulatory_entity)).order_by(AssessedEntity.name))).scalars().all()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Assessed Entities"
+    headers = ["name", "name_ar", "abbreviation", "entity_type", "sector", "regulatory_entity_abbreviation",
+               "registration_number", "contact_person", "contact_email", "contact_phone", "website", "notes", "status"]
+    for i, h in enumerate(headers, 1): ws.cell(row=1, column=i, value=h)
+    for row_idx, e in enumerate(entities, 2):
+        reg_abbr = e.regulatory_entity.abbreviation if e.regulatory_entity else ""
+        vals = [e.name, e.name_ar, e.abbreviation, e.entity_type, e.sector, reg_abbr,
+                e.registration_number, e.contact_person, e.contact_email, e.contact_phone, e.website, e.notes, e.status]
+        for i, v in enumerate(vals, 1): ws.cell(row=row_idx, column=i, value=v)
+    buf = BytesIO(); wb.save(buf); buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=assessed_entities.xlsx"})
+
+
+@router.post("/api/assessed-entities/import-excel")
+async def import_entities_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    from app.models.regulatory_entity import RegulatoryEntity
+    content = await file.read()
+    wb = load_workbook(BytesIO(content))
+    ws = wb.active
+    headers = [cell.value for cell in ws[1]]
+    rows = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        r = dict(zip(headers, row))
+        if r.get("name"): rows.append(r)
+    # Check existing by name
+    existing_names = set((await db.execute(select(AssessedEntity.name))).scalars().all())
+    new_rows = [r for r in rows if r["name"] not in existing_names]
+    dup_rows = [r for r in rows if r["name"] in existing_names]
+    if preview:
+        return {"total_in_file": len(rows),
+                "new_items": [{"name": r["name"], "abbreviation": r.get("abbreviation", "")} for r in new_rows],
+                "duplicates": [{"name": r["name"]} for r in dup_rows],
+                "will_import": len(new_rows), "will_skip": len(dup_rows)}
+    # Resolve regulatory entities
+    reg_entities = {re.abbreviation: re.id for re in (await db.execute(select(RegulatoryEntity))).scalars().all()}
+    created = 0
+    for r in new_rows:
+        reg_id = reg_entities.get(r.get("regulatory_entity_abbreviation")) if r.get("regulatory_entity_abbreviation") else None
+        db.add(AssessedEntity(name=r["name"], name_ar=r.get("name_ar"), abbreviation=r.get("abbreviation"),
+            entity_type=r.get("entity_type"), sector=r.get("sector"), regulatory_entity_id=reg_id,
+            registration_number=r.get("registration_number"), contact_person=r.get("contact_person"),
+            contact_email=r.get("contact_email"), contact_phone=r.get("contact_phone"),
+            website=r.get("website"), notes=r.get("notes"), status=r.get("status") or "Active"))
+        created += 1
+    await db.flush()
+    return {"imported": created, "skipped_duplicates": len(dup_rows)}

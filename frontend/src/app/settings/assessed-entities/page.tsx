@@ -7,7 +7,8 @@ import { api } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
-import { Building2, Plus, Edit, Ban, Search, X, Save, Cpu, Eye } from "lucide-react";
+import { Building2, Plus, Edit, Ban, Search, X, Save, Cpu, Eye, Download, Upload } from "lucide-react";
+import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 
 interface AssessedEntity { id: string; name: string; name_ar: string | null; abbreviation: string | null; entity_type: string | null; sector: string | null; regulatory_entity: any; contact_person: string | null; contact_email: string | null; status: string }
@@ -25,6 +26,9 @@ export default function AssessedEntitiesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(EMPTY);
   const [error, setError] = useState("");
+  const [importPreview, setImportPreview] = useState<any>(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const { data: entities, isLoading } = useQuery<AssessedEntity[]>({ queryKey: ["assessed-entities"], queryFn: () => api.get("/assessed-entities") });
   const { data: regEntities } = useQuery<any[]>({ queryKey: ["reg-entities-list"], queryFn: () => api.get("/regulatory-entities/") });
@@ -61,7 +65,25 @@ export default function AssessedEntitiesPage() {
         </div>
         <div className="flex items-center justify-between mb-6">
           <div className="relative flex-1 max-w-md"><Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-kpmg-placeholder" /><input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-11" /></div>
-          <button onClick={openCreate} className="kpmg-btn-primary flex items-center gap-2"><Plus className="w-4 h-4" /> New Entity</button>
+          <div className="flex items-center gap-2">
+            <button onClick={async () => {
+              const r = await fetch("/api/assessed-entities/export-excel", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+              const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "assessed_entities.xlsx"; a.click(); URL.revokeObjectURL(u);
+            }} className="kpmg-btn-secondary flex items-center gap-2 text-sm"><Download className="w-4 h-4" /> Export</button>
+            <label className="kpmg-btn-secondary flex items-center gap-2 text-sm cursor-pointer">
+              <Upload className="w-4 h-4" /> Import
+              <input type="file" accept=".xlsx" className="hidden" onChange={async (e) => {
+                const file = e.target.files?.[0]; if (!file) return;
+                setImportFile(file);
+                const fd = new FormData(); fd.append("file", file);
+                const r = await fetch("/api/assessed-entities/import-excel?preview=true", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+                const p = await r.json();
+                if (r.ok) { setImportPreview(p); } else { toast(p.detail || "Preview failed", "error"); }
+                e.target.value = "";
+              }} />
+            </label>
+            <button onClick={openCreate} className="kpmg-btn-primary flex items-center gap-2"><Plus className="w-4 h-4" /> New Entity</button>
+          </div>
         </div>
 
         {isLoading ? <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-16 kpmg-skeleton" />)}</div> : !filtered.length ? (
@@ -136,6 +158,16 @@ export default function AssessedEntitiesPage() {
           </div>
         </div>
       )}
+
+      <ImportPreviewModal open={!!importPreview} preview={importPreview} loading={importing} itemLabel="entities" nameKey="name"
+        onClose={() => { setImportPreview(null); setImportFile(null); }}
+        onConfirm={async () => {
+          if (!importFile) return; setImporting(true);
+          const fd = new FormData(); fd.append("file", importFile);
+          const r = await fetch("/api/assessed-entities/import-excel", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+          const d = await r.json(); setImporting(false); setImportPreview(null); setImportFile(null);
+          if (r.ok) { toast(`Imported ${d.imported} entities (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["assessed-entities"] }); } else { toast(d.detail || "Import failed", "error"); }
+        }} />
     </div>
   );
 }
