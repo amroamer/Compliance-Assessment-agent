@@ -195,26 +195,53 @@ export default function FormsPage({ params }: { params: Promise<{ frameworkId: s
                         </div>
                       </div>
 
-                      {/* Scale */}
-                      {tmpl.scale && (
-                        <div>
-                          <h4 className="text-xs font-heading font-bold text-kpmg-navy uppercase mb-3 flex items-center gap-1.5">
-                            <Layers className="w-3.5 h-3.5" /> Assessment Scale — {tmpl.scale.name}
-                            <span className="text-kpmg-placeholder font-normal">({tmpl.scale.scale_type})</span>
-                          </h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                            {(tmpl.scale.levels || []).sort((a: any, b: any) => a.sort_order - b.sort_order).map((l: any) => (
-                              <div key={l.id} className="flex items-center gap-3 py-2.5 px-3 bg-white rounded-btn">
-                                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ backgroundColor: l.color || "#6D6E71" }}>{Math.round(l.value)}</div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-semibold text-kpmg-navy">{l.label}</p>
-                                  {l.label_ar && <p className="text-[10px] text-kpmg-gray" dir="rtl">{l.label_ar}</p>}
+                      {/* Assessment Scales — multi-select */}
+                      <div>
+                        <h4 className="text-xs font-heading font-bold text-kpmg-navy uppercase mb-3 flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5" /> Assessment Scales
+                          <span className="text-kpmg-placeholder font-normal">— select which scales apply to this template</span>
+                        </h4>
+                        <div className="space-y-2">
+                          {(scales || []).map((s: any) => {
+                            const isSelected = (tmpl.scales || []).some((ts: any) => ts.id === s.id);
+                            return (
+                              <div key={s.id} className={`rounded-btn border-2 transition-all cursor-pointer ${isSelected ? "border-kpmg-blue bg-kpmg-blue/5" : "border-kpmg-border bg-white hover:border-kpmg-light/40"}`}
+                                onClick={async () => {
+                                  const currentIds = (tmpl.scales || []).map((ts: any) => ts.id);
+                                  const newIds = isSelected ? currentIds.filter((id: string) => id !== s.id) : [...currentIds, s.id];
+                                  try {
+                                    await api.put(`/frameworks/${frameworkId}/form-templates/${tmpl.id}/scales`, { scale_ids: newIds });
+                                    queryClient.invalidateQueries({ queryKey: ["form-templates", frameworkId] });
+                                  } catch (err: any) { toast(err.message, "error"); }
+                                }}>
+                                <div className="flex items-center gap-3 p-3">
+                                  <input type="checkbox" checked={isSelected} readOnly className="w-4 h-4 rounded border-kpmg-input-border text-kpmg-blue" />
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-heading font-bold text-kpmg-navy">{s.name}</span>
+                                      <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-kpmg-light/10 text-kpmg-light">{s.scale_type}</span>
+                                      <span className="text-[10px] text-kpmg-placeholder">{s.levels?.length || 0} levels</span>
+                                    </div>
+                                    {s.name_ar && <p className="text-xs text-kpmg-gray mt-0.5" dir="rtl">{s.name_ar}</p>}
+                                  </div>
+                                  {isSelected && <CheckCircle className="w-5 h-5 text-kpmg-blue shrink-0" />}
                                 </div>
+                                {isSelected && s.levels?.length > 0 && (
+                                  <div className="flex gap-1 px-3 pb-3">
+                                    {[...s.levels].sort((a: any, b: any) => a.sort_order - b.sort_order).map((l: any) => (
+                                      <div key={l.id || l.value} className="flex-1 text-center">
+                                        <div className="h-5 rounded" style={{ backgroundColor: l.color || "#E8E9EB" }} />
+                                        <p className="text-[9px] font-bold text-kpmg-navy mt-0.5">L{Math.round(l.value)}</p>
+                                        <p className="text-[8px] text-kpmg-gray">{l.label}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                            ))}
-                          </div>
+                            );
+                          })}
                         </div>
-                      )}
+                      </div>
                     </div>
                   )}
                 </div>

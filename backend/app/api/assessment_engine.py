@@ -154,7 +154,7 @@ def _scale_resp(s):
 @router.get("/api/frameworks/{fw_id}/form-templates")
 async def list_templates(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(
-        select(AssessmentFormTemplate).options(selectinload(AssessmentFormTemplate.fields), selectinload(AssessmentFormTemplate.node_type), selectinload(AssessmentFormTemplate.scale))
+        select(AssessmentFormTemplate).options(selectinload(AssessmentFormTemplate.fields), selectinload(AssessmentFormTemplate.node_type), selectinload(AssessmentFormTemplate.scale), selectinload(AssessmentFormTemplate.scales).selectinload(AssessmentScale.levels))
         .where(AssessmentFormTemplate.framework_id == fw_id)
     )
     return [_template_resp(t) for t in result.scalars().unique().all()]
@@ -162,7 +162,7 @@ async def list_templates(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db), c
 @router.get("/api/frameworks/{fw_id}/form-templates/by-node-type/{nt_id}")
 async def get_template_by_node_type(fw_id: uuid.UUID, nt_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(
-        select(AssessmentFormTemplate).options(selectinload(AssessmentFormTemplate.fields), selectinload(AssessmentFormTemplate.node_type), selectinload(AssessmentFormTemplate.scale).selectinload(AssessmentScale.levels))
+        select(AssessmentFormTemplate).options(selectinload(AssessmentFormTemplate.fields), selectinload(AssessmentFormTemplate.node_type), selectinload(AssessmentFormTemplate.scale).selectinload(AssessmentScale.levels), selectinload(AssessmentFormTemplate.scales).selectinload(AssessmentScale.levels))
         .where(AssessmentFormTemplate.framework_id == fw_id, AssessmentFormTemplate.node_type_id == nt_id)
     )
     t = result.scalar_one_or_none()
@@ -196,6 +196,27 @@ async def update_template(fw_id: uuid.UUID, tmpl_id: uuid.UUID, data: FormTempla
     result = await db.execute(select(AssessmentFormTemplate).options(selectinload(AssessmentFormTemplate.fields), selectinload(AssessmentFormTemplate.node_type)).where(AssessmentFormTemplate.id == tmpl_id))
     return _template_resp(result.scalar_one())
 
+class TemplateScalesUpdate(BaseModel):
+    scale_ids: list[uuid.UUID]
+
+@router.put("/api/frameworks/{fw_id}/form-templates/{tmpl_id}/scales")
+async def update_template_scales(fw_id: uuid.UUID, tmpl_id: uuid.UUID, data: TemplateScalesUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    from app.models.assessment_engine import assessment_template_scales
+    tmpl = (await db.execute(select(AssessmentFormTemplate).where(AssessmentFormTemplate.id == tmpl_id))).scalar_one_or_none()
+    if not tmpl: raise HTTPException(404, "Template not found")
+    # Clear existing and insert new
+    await db.execute(assessment_template_scales.delete().where(assessment_template_scales.c.template_id == tmpl_id))
+    for sid in data.scale_ids:
+        await db.execute(assessment_template_scales.insert().values(template_id=tmpl_id, scale_id=sid))
+    await db.flush()
+    # Reload and return
+    result = await db.execute(select(AssessmentFormTemplate).options(
+        selectinload(AssessmentFormTemplate.fields), selectinload(AssessmentFormTemplate.node_type),
+        selectinload(AssessmentFormTemplate.scale), selectinload(AssessmentFormTemplate.scales),
+    ).where(AssessmentFormTemplate.id == tmpl_id))
+    return _template_resp(result.scalar_one())
+
+
 @router.delete("/api/frameworks/{fw_id}/form-templates/{tmpl_id}", status_code=204)
 async def delete_template(fw_id: uuid.UUID, tmpl_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     await db.execute(delete(AssessmentFormField).where(AssessmentFormField.template_id == tmpl_id))
@@ -208,6 +229,7 @@ def _template_resp(t):
         "id": str(t.id), "framework_id": str(t.framework_id), "name": t.name, "description": t.description,
         "node_type": {"id": str(t.node_type.id), "name": t.node_type.name, "label": t.node_type.label} if t.node_type else None,
         "scale": _scale_resp(t.scale) if t.scale else None,
+        "scales": [_scale_resp(s) for s in (t.scales or [])],
         "fields": [{"id": str(f.id), "field_key": f.field_key, "label": f.label, "label_ar": f.label_ar,
                      "is_required": f.is_required, "is_visible": f.is_visible, "sort_order": f.sort_order,
                      "show_condition": f.show_condition, "placeholder": f.placeholder, "help_text": f.help_text,

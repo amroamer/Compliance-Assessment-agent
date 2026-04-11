@@ -63,6 +63,15 @@ class AssessmentScaleLevel(Base):
 
 # ============ LAYER 2: Form Templates ============
 
+# Junction table for many-to-many template ↔ scales
+from sqlalchemy import Table, Column
+assessment_template_scales = Table(
+    "assessment_template_scales", Base.metadata,
+    Column("template_id", UUID(as_uuid=True), ForeignKey("assessment_form_templates.id", ondelete="CASCADE"), primary_key=True),
+    Column("scale_id", UUID(as_uuid=True), ForeignKey("assessment_scales.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
 class AssessmentFormTemplate(Base):
     __tablename__ = "assessment_form_templates"
     __table_args__ = (UniqueConstraint("framework_id", "node_type_id"),)
@@ -78,7 +87,8 @@ class AssessmentFormTemplate(Base):
 
     fields: Mapped[list["AssessmentFormField"]] = relationship(back_populates="template", lazy="selectin", cascade="all, delete-orphan", order_by="AssessmentFormField.sort_order")
     node_type = relationship("NodeType", lazy="selectin")
-    scale = relationship("AssessmentScale", lazy="selectin")
+    scale = relationship("AssessmentScale", lazy="selectin", foreign_keys=[scale_id])
+    scales = relationship("AssessmentScale", secondary=assessment_template_scales, lazy="selectin")
 
 
 class AssessmentFormField(Base):
