@@ -264,6 +264,24 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
 
         <FrameworkTabs frameworkId={frameworkId} />
 
+        {/* KPI Cards */}
+        {nodes && (
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="kpmg-card p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-card bg-kpmg-blue/10 flex items-center justify-center"><span className="text-lg font-bold text-kpmg-blue">{nodes.filter((n: any) => n.depth === 0).length}</span></div>
+              <div><p className="text-sm font-heading font-bold text-kpmg-navy">Domains</p><p className="text-[10px] text-kpmg-placeholder">Level 1</p></div>
+            </div>
+            <div className="kpmg-card p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-card bg-status-warning/10 flex items-center justify-center"><span className="text-lg font-bold text-status-warning">{nodes.filter((n: any) => n.depth === 1).length}</span></div>
+              <div><p className="text-sm font-heading font-bold text-kpmg-navy">Questions</p><p className="text-[10px] text-kpmg-placeholder">Level 2</p></div>
+            </div>
+            <div className="kpmg-card p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-card bg-status-success/10 flex items-center justify-center"><span className="text-lg font-bold text-status-success">{nodes.filter((n: any) => n.depth === 2).length}</span></div>
+              <div><p className="text-sm font-heading font-bold text-kpmg-navy">Specifications</p><p className="text-[10px] text-kpmg-placeholder">Level 3</p></div>
+            </div>
+          </div>
+        )}
+
         {/* Controls */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
