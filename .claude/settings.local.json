@@ -77,7 +77,17 @@
       "Bash(grep -rln 'fetch\\(`/api/' frontend/src/)",
       "Bash(python3)",
       "Bash(grep -rn 'fetch\\(`\\\\${API_BASE}[^`]*\",' frontend/src/)",
-      "Bash(python3 -c \"import sys,json; [print\\(json.dumps\\(nt, indent=2\\)\\) for nt in json.load\\(sys.stdin\\)]\")"
+      "Bash(python3 -c \"import sys,json; [print\\(json.dumps\\(nt, indent=2\\)\\) for nt in json.load\\(sys.stdin\\)]\")",
+      "Bash(python -u -c ':*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:4200/api/assessments/0837e9d0-16ae-4bfe-b0ac-c6eff4d854ad)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:4200/api/assessments/0837e9d0-16ae-4bfe-b0ac-c6eff4d854ad/responses)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:4200/api/assessments/0837e9d0-16ae-4bfe-b0ac-c6eff4d854ad/compliance-stats)",
+      "Bash(python scripts/load_naii.py)",
+      "Bash(python scripts/load_ai_badges.py)",
+      "Bash(\"/c/Program Files/Docker/Docker/Docker Desktop.exe\")",
+      "Bash(python scripts/load_itgf.py)",
+      "Bash(curl -s -o /dev/null -w \"http://localhost:4200 -> HTTP %{http_code}\\\\n\" http://localhost:4200)",
+      "Bash(curl -s -o /dev/null -w \"http://localhost:4200/settings/regulatory-entities -> HTTP %{http_code}\\\\n\" http://localhost:4200/settings/regulatory-entities)"
     ]
   }
 }
