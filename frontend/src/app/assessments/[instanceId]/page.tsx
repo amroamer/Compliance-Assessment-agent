@@ -589,6 +589,25 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                           );
                         })}
                       </div>
+                    ) : field.field_key === "compliance_check" ? (
+                      <div className="flex gap-3">
+                        <button onClick={() => handleFieldChange(field.field_key, 1)} disabled={isLocked}
+                          className={`flex-1 p-3 rounded-btn border-2 text-center transition-all ${currentFormData[field.field_key] === 1 ? "border-status-success bg-status-success/10" : "border-kpmg-border hover:border-status-success/40"}`}>
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-status-success flex items-center justify-center text-white text-xs font-bold">1</div>
+                            <span className="text-sm font-semibold text-kpmg-navy">{isAr ? "ملتزم" : "Compliant"}</span>
+                            {currentFormData[field.field_key] === 1 && <Check className="w-5 h-5 text-status-success" />}
+                          </div>
+                        </button>
+                        <button onClick={() => handleFieldChange(field.field_key, 0)} disabled={isLocked}
+                          className={`flex-1 p-3 rounded-btn border-2 text-center transition-all ${currentFormData[field.field_key] === 0 ? "border-status-error bg-status-error/10" : "border-kpmg-border hover:border-status-error/40"}`}>
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-status-error flex items-center justify-center text-white text-xs font-bold">0</div>
+                            <span className="text-sm font-semibold text-kpmg-navy">{isAr ? "غير ملتزم" : "Non-Compliant"}</span>
+                            {currentFormData[field.field_key] === 0 && <Check className="w-5 h-5 text-status-error" />}
+                          </div>
+                        </button>
+                      </div>
                     ) : (
                       <textarea value={currentFormData[field.field_key] || ""} onChange={(e) => handleFieldChange(field.field_key, e.target.value)}
                         rows={4} className="kpmg-input resize-y min-h-[100px]" placeholder={field.placeholder || ""} disabled={isLocked} />
