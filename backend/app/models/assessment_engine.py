@@ -10,13 +10,20 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import (
-    BigInteger, Boolean, Date, DateTime, ForeignKey, Index, Integer,
-    Numeric, String, Text, UniqueConstraint,
+    BigInteger, Boolean, Column, Date, DateTime, ForeignKey, Index, Integer,
+    Numeric, String, Table, Text, UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+# Junction table for many-to-many: AssessedEntity <-> RegulatoryEntity
+entity_regulatory_entities = Table(
+    "entity_regulatory_entities", Base.metadata,
+    Column("entity_id", UUID(as_uuid=True), ForeignKey("assessed_entities.id", ondelete="CASCADE"), primary_key=True),
+    Column("regulatory_entity_id", UUID(as_uuid=True), ForeignKey("regulatory_entities.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 # ============ LAYER 1: Assessment Scales ============
@@ -145,17 +152,22 @@ class AssessedEntity(Base):
     entity_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     sector: Mapped[str | None] = mapped_column(String(100), nullable=True)
     regulatory_entity_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("regulatory_entities.id"), nullable=True)
+    government_category: Mapped[str | None] = mapped_column(String(100), nullable=True)
     registration_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     contact_person: Mapped[str | None] = mapped_column(String(255), nullable=True)
     contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     contact_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     website: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    logo_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    primary_color: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    secondary_color: Mapped[str | None] = mapped_column(String(20), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="Active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    regulatory_entity = relationship("RegulatoryEntity", lazy="selectin")
+    regulatory_entity = relationship("RegulatoryEntity", lazy="selectin", foreign_keys=[regulatory_entity_id])
+    regulatory_entities = relationship("RegulatoryEntity", secondary="entity_regulatory_entities", lazy="selectin")
 
 
 class AiProduct(Base):

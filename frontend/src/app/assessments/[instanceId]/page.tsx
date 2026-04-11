@@ -344,14 +344,24 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
             <button onClick={() => router.push("/assessments")} className="flex items-center gap-1 text-xs text-kpmg-gray hover:text-kpmg-navy transition font-body">
               <ArrowLeft className="w-3 h-3" /> Back
             </button>
-            <button onClick={async () => {
-              const res = await fetch(`${API_BASE}/assessments/${instanceId}/export/report`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
-              const blob = await res.blob();
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a"); a.href = url; a.download = "assessment_report.xlsx"; a.click(); URL.revokeObjectURL(url);
-            }} className="flex items-center gap-1 text-xs text-kpmg-light hover:text-kpmg-navy transition font-body">
-              <Download className="w-3 h-3" /> Export
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={async () => {
+                const res = await fetch(`${API_BASE}/assessments/${instanceId}/export/report`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a"); a.href = url; a.download = "assessment_report.xlsx"; a.click(); URL.revokeObjectURL(url);
+              }} className="flex items-center gap-1 text-xs text-kpmg-light hover:text-kpmg-navy transition font-body" title="Export Excel">
+                <Download className="w-3 h-3" /> Excel
+              </button>
+              <button onClick={async () => {
+                const res = await fetch(`${API_BASE}/assessments/${instanceId}/export/pdf`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a"); a.href = url; a.download = "assessment_report.pdf"; a.click(); URL.revokeObjectURL(url);
+              }} className="flex items-center gap-1 text-xs text-kpmg-light hover:text-kpmg-navy transition font-body" title="Export PDF Report">
+                <FileText className="w-3 h-3" /> PDF
+              </button>
+            </div>
           </div>
 
           {/* Progress — click to go to overview */}

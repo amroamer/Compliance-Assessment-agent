@@ -432,17 +432,25 @@ from app.models.assessment_engine import AssessedEntity
 async def export_entities_excel(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     from app.models.regulatory_entity import RegulatoryEntity
     from sqlalchemy.orm import selectinload
-    entities = (await db.execute(select(AssessedEntity).options(selectinload(AssessedEntity.regulatory_entity)).order_by(AssessedEntity.name))).scalars().all()
+    entities = (await db.execute(
+        select(AssessedEntity).options(selectinload(AssessedEntity.regulatory_entity), selectinload(AssessedEntity.regulatory_entities))
+        .order_by(AssessedEntity.name)
+    )).unique().scalars().all()
     wb = Workbook()
     ws = wb.active
     ws.title = "Assessed Entities"
-    headers = ["name", "name_ar", "abbreviation", "entity_type", "sector", "regulatory_entity_abbreviation",
-               "registration_number", "contact_person", "contact_email", "contact_phone", "website", "notes", "status"]
+    headers = ["name", "name_ar", "abbreviation", "entity_type", "government_category", "sector",
+               "regulatory_entities", "registration_number", "contact_person", "contact_email",
+               "contact_phone", "website", "primary_color", "secondary_color", "notes", "status"]
     for i, h in enumerate(headers, 1): ws.cell(row=1, column=i, value=h)
     for row_idx, e in enumerate(entities, 2):
-        reg_abbr = e.regulatory_entity.abbreviation if e.regulatory_entity else ""
-        vals = [e.name, e.name_ar, e.abbreviation, e.entity_type, e.sector, reg_abbr,
-                e.registration_number, e.contact_person, e.contact_email, e.contact_phone, e.website, e.notes, e.status]
+        # Comma-separated regulatory entity abbreviations
+        reg_abbrs = ", ".join(r.abbreviation for r in (e.regulatory_entities or []) if r.abbreviation) if hasattr(e, 'regulatory_entities') and e.regulatory_entities else ""
+        if not reg_abbrs and e.regulatory_entity:
+            reg_abbrs = e.regulatory_entity.abbreviation or ""
+        vals = [e.name, e.name_ar, e.abbreviation, e.entity_type, e.government_category, e.sector, reg_abbrs,
+                e.registration_number, e.contact_person, e.contact_email, e.contact_phone, e.website,
+                e.primary_color, e.secondary_color, e.notes, e.status]
         for i, v in enumerate(vals, 1): ws.cell(row=row_idx, column=i, value=v)
     buf = BytesIO(); wb.save(buf); buf.seek(0)
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -452,6 +460,7 @@ async def export_entities_excel(db: AsyncSession = Depends(get_db), current_user
 @router.post("/api/bulk-entities/import-excel")
 async def import_entities_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     from app.models.regulatory_entity import RegulatoryEntity
+    from app.models.assessment_engine import entity_regulatory_entities as ere_table
     content = await file.read()
     wb = load_workbook(BytesIO(content))
     ws = wb.active
@@ -473,12 +482,26 @@ async def import_entities_excel(file: UploadFile = File(...), preview: bool = Fa
     reg_entities = {re.abbreviation: re.id for re in (await db.execute(select(RegulatoryEntity))).scalars().all()}
     created = 0
     for r in new_rows:
-        reg_id = reg_entities.get(r.get("regulatory_entity_abbreviation")) if r.get("regulatory_entity_abbreviation") else None
-        db.add(AssessedEntity(name=r["name"], name_ar=r.get("name_ar"), abbreviation=r.get("abbreviation"),
-            entity_type=r.get("entity_type"), sector=r.get("sector"), regulatory_entity_id=reg_id,
+        # Parse regulatory_entities (comma-separated) or fallback to old column
+        reg_str = r.get("regulatory_entities") or r.get("regulatory_entity_abbreviation") or ""
+        reg_abbr_list = [a.strip() for a in str(reg_str).split(",") if a.strip()]
+        reg_id = reg_entities.get(reg_abbr_list[0]) if reg_abbr_list else None
+        entity = AssessedEntity(
+            name=r["name"], name_ar=r.get("name_ar"), abbreviation=r.get("abbreviation"),
+            entity_type=r.get("entity_type"), government_category=r.get("government_category"),
+            sector=r.get("sector"), regulatory_entity_id=reg_id,
             registration_number=r.get("registration_number"), contact_person=r.get("contact_person"),
             contact_email=r.get("contact_email"), contact_phone=r.get("contact_phone"),
-            website=r.get("website"), notes=r.get("notes"), status=r.get("status") or "Active"))
+            website=r.get("website"), primary_color=r.get("primary_color"), secondary_color=r.get("secondary_color"),
+            notes=r.get("notes"), status=r.get("status") or "Active",
+        )
+        db.add(entity)
+        await db.flush()
+        # Create junction table entries for all regulatory entities
+        for abbr in reg_abbr_list:
+            rid = reg_entities.get(abbr)
+            if rid:
+                await db.execute(ere_table.insert().values(entity_id=entity.id, regulatory_entity_id=rid))
         created += 1
     await db.flush()
     return {"imported": created, "skipped_duplicates": len(dup_rows)}

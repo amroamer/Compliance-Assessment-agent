@@ -232,6 +232,7 @@ async def update_entity(
 @router.delete("/{entity_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def deactivate_entity(
     entity_id: uuid.UUID,
+    permanent: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("admin")),
 ):
@@ -239,5 +240,25 @@ async def deactivate_entity(
     entity = result.scalar_one_or_none()
     if not entity:
         raise HTTPException(status_code=404, detail="Regulatory entity not found")
-    entity.status = "Inactive"
-    await db.flush()
+    if permanent:
+        # Remove framework links first
+        await db.execute(delete(EntityFramework).where(EntityFramework.entity_id == entity_id))
+        # Nullify assessed entity references
+        from app.models.assessment_engine import AssessedEntity, entity_regulatory_entities as ere_table
+        await db.execute(ere_table.delete().where(ere_table.c.regulatory_entity_id == entity_id))
+        await db.execute(
+            select(AssessedEntity).where(AssessedEntity.regulatory_entity_id == entity_id)
+        )
+        from sqlalchemy import update
+        await db.execute(
+            update(AssessedEntity).where(AssessedEntity.regulatory_entity_id == entity_id).values(regulatory_entity_id=None)
+        )
+        # Nullify compliance framework references
+        await db.execute(
+            update(ComplianceFramework).where(ComplianceFramework.entity_id == entity_id).values(entity_id=None)
+        )
+        await db.delete(entity)
+        await db.flush()
+    else:
+        entity.status = "Inactive"
+        await db.flush()

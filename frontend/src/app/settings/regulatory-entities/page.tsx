@@ -7,7 +7,7 @@ import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import {
   Building2, Plus, Edit, Search, ExternalLink, X, Save,
-  CheckCircle, Circle, Ban, Download, Upload,
+  CheckCircle, Circle, Ban, Trash2, Download, Upload,
 } from "lucide-react";
 import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
 import { useConfirm } from "@/components/ui/ConfirmModal";
@@ -96,6 +96,14 @@ export default function RegulatoryEntitiesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reg-entities"] });
       toast("Entity deactivated", "info");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/regulatory-entities/${id}?permanent=true`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reg-entities"] });
+      toast("Entity permanently deleted", "info");
     },
   });
 
@@ -238,6 +246,10 @@ export default function RegulatoryEntitiesPage() {
                             <Ban className="w-4 h-4" />
                           </button>
                         )}
+                        <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Delete Permanently", message: `Permanently delete "${entity.abbreviation}"? This cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) deleteMutation.mutate(entity.id); }}
+                          className="p-2 text-kpmg-gray hover:text-status-error hover:bg-[#FEF2F2] rounded-btn transition" title="Delete Permanently">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>

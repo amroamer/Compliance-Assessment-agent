@@ -6,7 +6,7 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,10 +56,13 @@ class AggRuleCreate(BaseModel):
 class AssessedEntityCreate(BaseModel):
     name: str; name_ar: str | None = None; abbreviation: str | None = None
     entity_type: str | None = None; sector: str | None = None
+    government_category: str | None = None
     regulatory_entity_id: uuid.UUID | None = None
+    regulatory_entity_ids: list[uuid.UUID] = []
     registration_number: str | None = None; contact_person: str | None = None
     contact_email: str | None = None; contact_phone: str | None = None
     website: str | None = None; notes: str | None = None; status: str = "Active"
+    primary_color: str | None = None; secondary_color: str | None = None
 
 class AssessmentInstanceCreate(BaseModel):
     cycle_id: uuid.UUID; assessed_entity_id: uuid.UUID
@@ -295,41 +298,63 @@ def _rule_resp(r):
 
 # ============ LAYER 4: ASSESSED ENTITIES API ============
 
+_ENTITY_LOAD_OPTS = [selectinload(AssessedEntity.regulatory_entity), selectinload(AssessedEntity.regulatory_entities)]
+
 @router.get("/api/assessed-entities")
 async def list_assessed_entities(
     entity_type: str | None = None, sector: str | None = None, status_filter: str | None = Query(None, alias="status"),
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
-    query = select(AssessedEntity).options(selectinload(AssessedEntity.regulatory_entity))
+    query = select(AssessedEntity).options(*_ENTITY_LOAD_OPTS)
     if entity_type: query = query.where(AssessedEntity.entity_type == entity_type)
     if sector: query = query.where(AssessedEntity.sector == sector)
     if status_filter: query = query.where(AssessedEntity.status == status_filter)
     result = await db.execute(query.order_by(AssessedEntity.name))
-    return [_entity_resp(e) for e in result.scalars().all()]
+    return [_entity_resp(e) for e in result.unique().scalars().all()]
 
 @router.get("/api/assessed-entities/{eid}")
 async def get_assessed_entity(eid: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    r = await db.execute(select(AssessedEntity).options(selectinload(AssessedEntity.regulatory_entity)).where(AssessedEntity.id == eid))
-    e = r.scalar_one_or_none()
+    r = await db.execute(select(AssessedEntity).options(*_ENTITY_LOAD_OPTS).where(AssessedEntity.id == eid))
+    e = r.unique().scalar_one_or_none()
     if not e: raise HTTPException(404, "Entity not found")
     return _entity_resp(e)
 
+async def _save_regulatory_entities(db, entity, reg_ids: list[uuid.UUID]):
+    """Sync the many-to-many regulatory entities for an assessed entity."""
+    from app.models.assessment_engine import entity_regulatory_entities as ere_table
+    from app.models.regulatory_entity import RegulatoryEntity
+    # Clear existing
+    await db.execute(ere_table.delete().where(ere_table.c.entity_id == entity.id))
+    # Insert new
+    for rid in reg_ids:
+        await db.execute(ere_table.insert().values(entity_id=entity.id, regulatory_entity_id=rid))
+
 @router.post("/api/assessed-entities", status_code=201)
 async def create_assessed_entity(data: AssessedEntityCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin", "kpmg_user"))):
-    e = AssessedEntity(**data.model_dump())
+    reg_ids = data.regulatory_entity_ids
+    payload = data.model_dump(exclude={"regulatory_entity_ids"})
+    e = AssessedEntity(**payload)
     db.add(e); await db.flush()
-    r = await db.execute(select(AssessedEntity).options(selectinload(AssessedEntity.regulatory_entity)).where(AssessedEntity.id == e.id))
-    return _entity_resp(r.scalar_one())
+    if reg_ids:
+        await _save_regulatory_entities(db, e, reg_ids)
+    await db.flush()
+    r = await db.execute(select(AssessedEntity).options(*_ENTITY_LOAD_OPTS).where(AssessedEntity.id == e.id))
+    return _entity_resp(r.unique().scalar_one())
 
 @router.put("/api/assessed-entities/{eid}")
 async def update_assessed_entity(eid: uuid.UUID, data: AssessedEntityCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin", "kpmg_user"))):
     r = await db.execute(select(AssessedEntity).where(AssessedEntity.id == eid))
     e = r.scalar_one_or_none()
     if not e: raise HTTPException(404, "Entity not found")
-    for k, v in data.model_dump(exclude_unset=True).items(): setattr(e, k, v)
+    reg_ids = data.regulatory_entity_ids
+    for k, v in data.model_dump(exclude_unset=True, exclude={"regulatory_entity_ids"}).items():
+        setattr(e, k, v)
     await db.flush()
-    r = await db.execute(select(AssessedEntity).options(selectinload(AssessedEntity.regulatory_entity)).where(AssessedEntity.id == eid))
-    return _entity_resp(r.scalar_one())
+    if reg_ids is not None:
+        await _save_regulatory_entities(db, e, reg_ids)
+    await db.flush()
+    r = await db.execute(select(AssessedEntity).options(*_ENTITY_LOAD_OPTS).where(AssessedEntity.id == eid))
+    return _entity_resp(r.unique().scalar_one())
 
 @router.delete("/api/assessed-entities/{eid}", status_code=204)
 async def deactivate_assessed_entity(eid: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
@@ -338,13 +363,47 @@ async def deactivate_assessed_entity(eid: uuid.UUID, db: AsyncSession = Depends(
     if not e: raise HTTPException(404, "Entity not found")
     e.status = "Inactive"; await db.flush()
 
+@router.post("/api/assessed-entities/{eid}/logo")
+async def upload_entity_logo(eid: uuid.UUID, file: UploadFile = File(...), db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin", "kpmg_user"))):
+    r = await db.execute(select(AssessedEntity).where(AssessedEntity.id == eid))
+    e = r.scalar_one_or_none()
+    if not e: raise HTTPException(404, "Entity not found")
+    import os, aiofiles
+    upload_dir = f"/app/uploads/logos"
+    os.makedirs(upload_dir, exist_ok=True)
+    ext = os.path.splitext(file.filename)[1] if file.filename else ".png"
+    filepath = f"{upload_dir}/{eid}{ext}"
+    async with aiofiles.open(filepath, "wb") as f:
+        content = await file.read()
+        await f.write(content)
+    e.logo_path = filepath
+    await db.flush()
+    return {"logo_path": filepath}
+
+@router.get("/api/assessed-entities/{eid}/logo")
+async def get_entity_logo(eid: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    r = await db.execute(select(AssessedEntity).where(AssessedEntity.id == eid))
+    e = r.scalar_one_or_none()
+    if not e or not e.logo_path: raise HTTPException(404, "Logo not found")
+    import os
+    if not os.path.exists(e.logo_path): raise HTTPException(404, "Logo file not found")
+    from starlette.responses import FileResponse
+    return FileResponse(e.logo_path)
+
 def _entity_resp(e):
+    reg_entities = []
+    if hasattr(e, 'regulatory_entities') and e.regulatory_entities:
+        reg_entities = [{"id": str(r.id), "name": r.name, "abbreviation": r.abbreviation} for r in e.regulatory_entities]
     return {
         "id": str(e.id), "name": e.name, "name_ar": e.name_ar, "abbreviation": e.abbreviation,
-        "entity_type": e.entity_type, "sector": e.sector, "registration_number": e.registration_number,
+        "entity_type": e.entity_type, "sector": e.sector, "government_category": e.government_category,
+        "registration_number": e.registration_number,
         "regulatory_entity": {"id": str(e.regulatory_entity.id), "name": e.regulatory_entity.name, "abbreviation": e.regulatory_entity.abbreviation} if e.regulatory_entity else None,
+        "regulatory_entities": reg_entities,
         "contact_person": e.contact_person, "contact_email": e.contact_email, "contact_phone": e.contact_phone,
-        "website": e.website, "notes": e.notes, "status": e.status,
+        "website": e.website, "logo_path": e.logo_path,
+        "primary_color": e.primary_color, "secondary_color": e.secondary_color,
+        "notes": e.notes, "status": e.status,
         "created_at": e.created_at.isoformat() if e.created_at else "", "updated_at": e.updated_at.isoformat() if e.updated_at else "",
     }
 
@@ -1021,6 +1080,15 @@ async def export_assessment_report_endpoint(inst_id: uuid.UUID, db: AsyncSession
     buffer = await generate_assessment_report(db, inst_id)
     return StreamingResponse(buffer, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename=assessment_{inst_id}_report.xlsx"})
+
+
+@router.get("/api/assessments/{inst_id}/export/pdf")
+async def export_assessment_pdf_endpoint(inst_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.services.pdf_report_service import generate_pdf_report
+    from fastapi.responses import StreamingResponse
+    buffer = await generate_pdf_report(db, inst_id)
+    return StreamingResponse(buffer, media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=assessment_{inst_id}_report.pdf"})
 
 
 # ============ ENTITY DASHBOARD, SCORES & EVIDENCE ============
