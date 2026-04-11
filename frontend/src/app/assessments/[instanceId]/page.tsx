@@ -746,27 +746,39 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                         {/* Review Feedback first */}
                         {aiFields.filter((f: any) => f.field_key === "review_feedback").map(renderField)}
 
-                        {/* Document Verification Status */}
+                        {/* Document Verification Status — always visible */}
                         {(() => {
                           const rd = currentFormData;
                           const docAnalysis = rd.ai_assessment?.document_analysis || [];
-                          if (docAnalysis.length === 0 && rd.doc_approved == null) return null;
+                          const hasBeenChecked = docAnalysis.length > 0 || rd.doc_approved != null;
                           const allApproved = docAnalysis.length > 0 ? docAnalysis.every((d: any) => d.is_approved) : rd.doc_approved;
                           const allSigned = docAnalysis.length > 0 ? docAnalysis.every((d: any) => d.has_signature) : rd.doc_signed;
+                          const docDate = docAnalysis.length > 0 ? docAnalysis.find((d: any) => d.document_date)?.document_date : null;
                           return (
                             <div>
                               <label className="kpmg-label">Document Verification</label>
-                              <div className="flex gap-3 mt-1">
-                                <div className={`flex-1 p-3 rounded-btn border-2 text-center ${allApproved ? "border-status-success bg-status-success/5" : "border-status-error bg-status-error/5"}`}>
-                                  <p className={`text-sm font-bold ${allApproved ? "text-status-success" : "text-status-error"}`}>{allApproved ? "Approved" : "Not Approved"}</p>
-                                  <p className="text-[10px] text-kpmg-placeholder mt-0.5">Document approval status</p>
+                              <p className="text-[10px] text-kpmg-placeholder mb-2">Auto-checked by AI Assess when evidence is reviewed</p>
+                              <div className="grid grid-cols-3 gap-3">
+                                <div className={`p-3 rounded-btn border-2 text-center ${!hasBeenChecked ? "border-kpmg-border bg-kpmg-light-gray/50" : docDate ? "border-status-success bg-status-success/5" : "border-status-warning bg-status-warning/5"}`}>
+                                  <p className={`text-sm font-bold ${!hasBeenChecked ? "text-kpmg-placeholder" : docDate ? "text-status-success" : "text-status-warning"}`}>
+                                    {!hasBeenChecked ? "Not Checked" : docDate ? docDate : "No Date"}
+                                  </p>
+                                  <p className="text-[10px] text-kpmg-placeholder mt-0.5">Document Date</p>
+                                </div>
+                                <div className={`p-3 rounded-btn border-2 text-center ${!hasBeenChecked ? "border-kpmg-border bg-kpmg-light-gray/50" : allApproved ? "border-status-success bg-status-success/5" : "border-status-error bg-status-error/5"}`}>
+                                  <p className={`text-sm font-bold ${!hasBeenChecked ? "text-kpmg-placeholder" : allApproved ? "text-status-success" : "text-status-error"}`}>
+                                    {!hasBeenChecked ? "Not Checked" : allApproved ? "Approved" : "Not Approved"}
+                                  </p>
+                                  <p className="text-[10px] text-kpmg-placeholder mt-0.5">Approval Status</p>
                                   {docAnalysis.map((d: any, i: number) => d.approved_by && (
                                     <p key={i} className="text-[9px] text-kpmg-gray mt-0.5">By: {d.approved_by}</p>
                                   ))}
                                 </div>
-                                <div className={`flex-1 p-3 rounded-btn border-2 text-center ${allSigned ? "border-status-success bg-status-success/5" : "border-status-warning bg-status-warning/5"}`}>
-                                  <p className={`text-sm font-bold ${allSigned ? "text-status-success" : "text-status-warning"}`}>{allSigned ? "Signed" : "No Signature"}</p>
-                                  <p className="text-[10px] text-kpmg-placeholder mt-0.5">Signature / stamp detected</p>
+                                <div className={`p-3 rounded-btn border-2 text-center ${!hasBeenChecked ? "border-kpmg-border bg-kpmg-light-gray/50" : allSigned ? "border-status-success bg-status-success/5" : "border-status-warning bg-status-warning/5"}`}>
+                                  <p className={`text-sm font-bold ${!hasBeenChecked ? "text-kpmg-placeholder" : allSigned ? "text-status-success" : "text-status-warning"}`}>
+                                    {!hasBeenChecked ? "Not Checked" : allSigned ? "Signed" : "No Signature"}
+                                  </p>
+                                  <p className="text-[10px] text-kpmg-placeholder mt-0.5">Signature / Stamp</p>
                                 </div>
                               </div>
                             </div>
