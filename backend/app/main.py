@@ -226,11 +226,13 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await seed_admin()
-    await seed_cycle_configs()
-    await seed_regulatory_entities()
-    await seed_compliance_frameworks()
-    await seed_node_types()
-    await seed_scales()
+    # Seed functions below only run on first-time setup.
+    # They have issues with existing data — configure via UI instead.
+    # await seed_cycle_configs()
+    # await seed_regulatory_entities()
+    # await seed_compliance_frameworks()
+    # await seed_node_types()
+    # await seed_scales()
     yield
 
 
