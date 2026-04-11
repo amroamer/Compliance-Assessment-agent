@@ -564,7 +564,10 @@ async def get_response_by_node(inst_id: uuid.UUID, node_id: uuid.UUID, ai_produc
         "node": {"id": str(resp.node.id), "name": resp.node.name, "name_ar": resp.node.name_ar,
                  "reference_code": resp.node.reference_code, "node_type": resp.node.node_type,
                  "description": resp.node.description, "description_ar": resp.node.description_ar,
-                 "guidance": resp.node.guidance, "guidance_ar": resp.node.guidance_ar} if resp.node else None,
+                 "guidance": resp.node.guidance, "guidance_ar": resp.node.guidance_ar,
+                 "maturity_level": resp.node.maturity_level, "evidence_type": resp.node.evidence_type,
+                 "acceptance_criteria": resp.node.acceptance_criteria, "acceptance_criteria_en": resp.node.acceptance_criteria_en,
+                 "spec_references": resp.node.spec_references, "priority": resp.node.priority} if resp.node else None,
         "template": _template_resp(resp.template) if resp.template else None,
     }
 

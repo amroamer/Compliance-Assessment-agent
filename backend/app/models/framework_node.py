@@ -51,6 +51,12 @@ class FrameworkNode(Base):
     is_assessable: Mapped[bool] = mapped_column(Boolean, default=False)
     weight: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     max_score: Mapped[Decimal | None] = mapped_column(Numeric(7, 2), nullable=True)
+    maturity_level: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-5
+    evidence_type: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    acceptance_criteria: Mapped[str | None] = mapped_column(Text, nullable=True)  # Arabic
+    acceptance_criteria_en: Mapped[str | None] = mapped_column(Text, nullable=True)  # English
+    spec_references: Mapped[str | None] = mapped_column(String(500), nullable=True)  # e.g. "OD.C.1.1, OD.C.2.1"
+    priority: Mapped[str | None] = mapped_column(String(10), nullable=True)  # P1, P2
     metadata_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(

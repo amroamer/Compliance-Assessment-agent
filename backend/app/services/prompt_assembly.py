@@ -224,6 +224,18 @@ def _build_user_prompt(fw, node, response, evidence_files, evidence_contents, en
         prompt += f"**Description:** {node.description}\n"
     if node.guidance:
         prompt += f"\n**Assessment Guidance:** {node.guidance}\n"
+    if hasattr(node, 'evidence_type') and node.evidence_type:
+        prompt += f"\n**Expected Evidence Type:** {node.evidence_type}\n"
+    if hasattr(node, 'acceptance_criteria') and node.acceptance_criteria:
+        prompt += f"\n**Acceptance Criteria:**\n{node.acceptance_criteria}\n"
+    if hasattr(node, 'acceptance_criteria_en') and node.acceptance_criteria_en:
+        prompt += f"\n**Acceptance Criteria (EN):**\n{node.acceptance_criteria_en}\n"
+    if hasattr(node, 'spec_references') and node.spec_references:
+        prompt += f"\n**Specification References:** {node.spec_references}\n"
+    if hasattr(node, 'maturity_level') and node.maturity_level is not None:
+        prompt += f"\n**Maturity Level:** {node.maturity_level}\n"
+    if hasattr(node, 'priority') and node.priority:
+        prompt += f"**Priority:** {node.priority}\n"
 
     # Consultant's answer
     prompt += "\n## Consultant's Answer\n\n"

@@ -511,6 +511,31 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                     </div>
                   ) : null;
                 })()}
+                {/* Evidence Type + Acceptance Criteria */}
+                {(nodeResponse.node?.evidence_type || nodeResponse.node?.acceptance_criteria || nodeResponse.node?.acceptance_criteria_en) && (
+                  <div className="mt-3 space-y-2">
+                    {nodeResponse.node.evidence_type && (
+                      <div className="p-3 bg-kpmg-purple/5 border border-kpmg-purple/20 rounded-btn">
+                        <p className="text-[10px] font-semibold text-kpmg-purple uppercase mb-1">{isAr ? "نوع الدليل المطلوب" : "Expected Evidence"}</p>
+                        <p className="text-xs text-kpmg-navy">{nodeResponse.node.evidence_type}</p>
+                      </div>
+                    )}
+                    {(() => {
+                      const criteria = isAr ? (nodeResponse.node.acceptance_criteria || nodeResponse.node.acceptance_criteria_en) : (nodeResponse.node.acceptance_criteria_en || nodeResponse.node.acceptance_criteria);
+                      return criteria ? (
+                        <div className="p-3 bg-status-warning/5 border border-status-warning/20 rounded-btn">
+                          <p className="text-[10px] font-semibold text-status-warning uppercase mb-1">{isAr ? "معايير القبول" : "Acceptance Criteria"}</p>
+                          <p className="text-xs text-kpmg-gray leading-relaxed whitespace-pre-line">{criteria}</p>
+                        </div>
+                      ) : null;
+                    })()}
+                    <div className="flex gap-2 flex-wrap">
+                      {nodeResponse.node.maturity_level != null && <span className="text-[10px] px-2 py-0.5 rounded bg-kpmg-blue/10 text-kpmg-blue font-bold">Level {nodeResponse.node.maturity_level}</span>}
+                      {nodeResponse.node.priority && <span className="text-[10px] px-2 py-0.5 rounded bg-kpmg-purple/10 text-kpmg-purple font-bold">{nodeResponse.node.priority}</span>}
+                      {nodeResponse.node.spec_references && <span className="text-[10px] px-2 py-0.5 rounded bg-kpmg-light-gray text-kpmg-gray font-mono">{nodeResponse.node.spec_references}</span>}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* SECTION 1: Manual Input Fields (answer, scale_rating, compliance_check) */}

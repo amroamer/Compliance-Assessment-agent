@@ -28,12 +28,16 @@ interface NodeForm {
   parent_id: string | null; node_type: string; reference_code: string; name: string; name_ar: string;
   description: string; description_ar: string; guidance: string; guidance_ar: string;
   is_assessable: boolean; weight: string; max_score: string;
+  maturity_level: string; evidence_type: string; acceptance_criteria: string; acceptance_criteria_en: string;
+  spec_references: string; priority: string;
 }
 
 const EMPTY_FORM: NodeForm = {
   parent_id: null, node_type: "", reference_code: "", name: "", name_ar: "",
   description: "", description_ar: "", guidance: "", guidance_ar: "",
   is_assessable: false, weight: "", max_score: "",
+  maturity_level: "", evidence_type: "", acceptance_criteria: "", acceptance_criteria_en: "",
+  spec_references: "", priority: "",
 };
 
 export default function HierarchyBuilderPage({ params }: { params: Promise<{ frameworkId: string }> }) {
@@ -159,6 +163,9 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
       description_ar: node.description_ar || "", guidance: node.guidance || "",
       guidance_ar: node.guidance_ar || "", is_assessable: node.is_assessable,
       weight: node.weight?.toString() || "", max_score: node.max_score?.toString() || "",
+      maturity_level: node.maturity_level?.toString() || "", evidence_type: node.evidence_type || "",
+      acceptance_criteria: node.acceptance_criteria || "", acceptance_criteria_en: node.acceptance_criteria_en || "",
+      spec_references: node.spec_references || "", priority: node.priority || "",
     });
     const parent = node.parent_id ? nodeMap[node.parent_id] : null;
     setParentBreadcrumb(parent ? `${parent.name}${parent.reference_code ? ` (${parent.reference_code})` : ""}` : "");
@@ -398,14 +405,49 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
                   <span className="text-xs text-kpmg-placeholder font-body">— consultants will score this node during assessments</span>
                 </label>
                 {form.is_assessable && (
-                  <div className="grid grid-cols-2 gap-4 mt-3">
-                    <div>
-                      <label className="kpmg-label">Weight</label>
-                      <input type="number" step="0.01" value={form.weight} onChange={(e) => setForm((f) => ({ ...f, weight: e.target.value }))} className="kpmg-input" placeholder="1.0" />
+                  <div className="space-y-4 mt-3">
+                    <div className="grid grid-cols-4 gap-4">
+                      <div>
+                        <label className="kpmg-label">Weight</label>
+                        <input type="number" step="0.01" value={form.weight} onChange={(e) => setForm((f) => ({ ...f, weight: e.target.value }))} className="kpmg-input" placeholder="1.0" />
+                      </div>
+                      <div>
+                        <label className="kpmg-label">Max Score</label>
+                        <input type="number" step="0.01" value={form.max_score} onChange={(e) => setForm((f) => ({ ...f, max_score: e.target.value }))} className="kpmg-input" placeholder="5.0" />
+                      </div>
+                      <div>
+                        <label className="kpmg-label">Maturity Level</label>
+                        <select value={form.maturity_level} onChange={(e) => setForm((f) => ({ ...f, maturity_level: e.target.value }))} className="kpmg-input">
+                          <option value="">—</option>
+                          <option value="0">L0</option><option value="1">L1</option><option value="2">L2</option>
+                          <option value="3">L3</option><option value="4">L4</option><option value="5">L5</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="kpmg-label">Priority</label>
+                        <select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))} className="kpmg-input">
+                          <option value="">—</option>
+                          <option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option>
+                        </select>
+                      </div>
                     </div>
                     <div>
-                      <label className="kpmg-label">Max Score</label>
-                      <input type="number" step="0.01" value={form.max_score} onChange={(e) => setForm((f) => ({ ...f, max_score: e.target.value }))} className="kpmg-input" placeholder="5.0" />
+                      <label className="kpmg-label">Evidence Type</label>
+                      <input type="text" value={form.evidence_type} onChange={(e) => setForm((f) => ({ ...f, evidence_type: e.target.value }))} className="kpmg-input" placeholder="Expected document/evidence format..." />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="kpmg-label">Acceptance Criteria (English)</label>
+                        <textarea value={form.acceptance_criteria_en} onChange={(e) => setForm((f) => ({ ...f, acceptance_criteria_en: e.target.value }))} rows={4} className="kpmg-input resize-y" placeholder="What must the evidence contain to be accepted..." />
+                      </div>
+                      <div>
+                        <label className="kpmg-label">Acceptance Criteria (Arabic)</label>
+                        <textarea dir="rtl" value={form.acceptance_criteria} onChange={(e) => setForm((f) => ({ ...f, acceptance_criteria: e.target.value }))} rows={4} className="kpmg-input resize-y text-right" placeholder="معايير القبول..." />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="kpmg-label">Spec References</label>
+                      <input type="text" value={form.spec_references} onChange={(e) => setForm((f) => ({ ...f, spec_references: e.target.value }))} className="kpmg-input" placeholder="e.g. OD.C.1.1, OD.C.2.1" />
                     </div>
                   </div>
                 )}
@@ -415,7 +457,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border">
               <button onClick={() => setModalOpen(false)} className="kpmg-btn-secondary text-sm px-5 py-2.5">Cancel</button>
               <button
-                onClick={() => saveMutation.mutate(form)}
+                onClick={() => saveMutation.mutate({ ...form, maturity_level: form.maturity_level ? parseInt(form.maturity_level) : null, weight: form.weight ? parseFloat(form.weight) : null, max_score: form.max_score ? parseFloat(form.max_score) : null })}
                 disabled={saveMutation.isPending || !form.name || !form.node_type}
                 className="kpmg-btn-primary text-sm px-5 py-2.5 flex items-center gap-1.5"
               >

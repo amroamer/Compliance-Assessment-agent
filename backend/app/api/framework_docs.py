@@ -159,12 +159,12 @@ async def export_nodes_excel(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db
     wb = Workbook()
     ws = wb.active
     ws.title = "Hierarchy"
-    headers = ["reference_code", "name", "name_ar", "node_type", "parent_reference_code", "description", "description_ar", "guidance", "guidance_ar", "is_assessable", "weight", "sort_order"]
+    headers = ["reference_code", "name", "name_ar", "node_type", "parent_reference_code", "description", "description_ar", "guidance", "guidance_ar", "is_assessable", "weight", "sort_order", "maturity_level", "evidence_type", "acceptance_criteria", "acceptance_criteria_en", "spec_references", "priority"]
     for i, h in enumerate(headers, 1): ws.cell(row=1, column=i, value=h)
     node_map = {str(n.id): n.reference_code for n in nodes}
     for row_idx, n in enumerate(nodes, 2):
         parent_ref = node_map.get(str(n.parent_id), "") if n.parent_id else ""
-        vals = [n.reference_code, n.name, n.name_ar, n.node_type, parent_ref, n.description, n.description_ar, n.guidance, n.guidance_ar, n.is_assessable, float(n.weight) if n.weight else None, n.sort_order]
+        vals = [n.reference_code, n.name, n.name_ar, n.node_type, parent_ref, n.description, n.description_ar, n.guidance, n.guidance_ar, n.is_assessable, float(n.weight) if n.weight else None, n.sort_order, n.maturity_level, n.evidence_type, n.acceptance_criteria, n.acceptance_criteria_en, n.spec_references, n.priority]
         for i, v in enumerate(vals, 1): ws.cell(row=row_idx, column=i, value=v)
     buf = BytesIO(); wb.save(buf); buf.seek(0)
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -201,7 +201,11 @@ async def import_nodes_excel(fw_id: uuid.UUID, file: UploadFile = File(...), pre
             name_ar=r.get("name_ar"), node_type=r.get("node_type", ""), description=r.get("description"),
             description_ar=r.get("description_ar"), guidance=r.get("guidance"), guidance_ar=r.get("guidance_ar"),
             is_assessable=bool(r.get("is_assessable")), weight=r.get("weight"),
-            sort_order=r.get("sort_order") or i, depth=0, path=f"/{uuid.uuid4()}/", is_active=True)
+            sort_order=r.get("sort_order") or i, depth=0, path=f"/{uuid.uuid4()}/", is_active=True,
+            maturity_level=int(r["maturity_level"]) if r.get("maturity_level") is not None and str(r["maturity_level"]).strip() else None,
+            evidence_type=r.get("evidence_type"), acceptance_criteria=r.get("acceptance_criteria"),
+            acceptance_criteria_en=r.get("acceptance_criteria_en"), spec_references=r.get("spec_references"),
+            priority=r.get("priority"))
         db.add(node)
         await db.flush()
         ref_to_id[r["reference_code"]] = node.id
