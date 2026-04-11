@@ -1,4 +1,4 @@
-export const API_BASE = "/api";
+export const API_BASE = (process.env.NEXT_PUBLIC_BASE_PATH || "") + "/api";
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -30,7 +30,7 @@ async function request<T>(
   if (res.status === 401) {
     if (typeof window !== "undefined") {
       localStorage.removeItem("token");
-      window.location.href = "/login";
+      window.location.href = (process.env.NEXT_PUBLIC_BASE_PATH || "") + "/login";
     }
     throw new ApiError(401, "Unauthorized");
   }
