@@ -119,7 +119,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
       }
     }
     // Sort children at every level by reference_code
-    const sortFn = (a: any, b: any) => (a.reference_code || "").localeCompare(b.reference_code || "", undefined, { numeric: true });
+    const sortFn = (a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || (a.reference_code || "").localeCompare(b.reference_code || "", undefined, { numeric: true });
     const sortTree = (items: any[]) => { items.sort(sortFn); items.forEach((i) => sortTree(i._children)); };
     sortTree(roots);
     return roots;

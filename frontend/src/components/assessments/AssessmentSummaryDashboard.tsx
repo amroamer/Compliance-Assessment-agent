@@ -39,7 +39,7 @@ export function AssessmentSummaryDashboard({ instance, nodes, allResponses, comp
   }, [allResponses]);
 
   // Get assessable nodes sorted
-  const sortFn = (a: any, b: any) => (a.reference_code || "").localeCompare(b.reference_code || "", undefined, { numeric: true });
+  const sortFn = (a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || (a.reference_code || "").localeCompare(b.reference_code || "", undefined, { numeric: true });
 
   // Build domain structure with per-product data
   const domains = useMemo(() => {

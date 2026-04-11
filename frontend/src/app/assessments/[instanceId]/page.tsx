@@ -181,7 +181,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
   // Build tree (sorted by reference_code)
   const tree = useMemo(() => {
     if (!nodes) return [];
-    const sortFn = (a: any, b: any) => (a.reference_code || "").localeCompare(b.reference_code || "", undefined, { numeric: true });
+    const sortFn = (a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || (a.reference_code || "").localeCompare(b.reference_code || "", undefined, { numeric: true });
     const map: Record<string, any> = {};
     const roots: any[] = [];
     for (const n of nodes) map[n.id] = { ...n, _children: [] };
@@ -206,7 +206,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
   const assessableNodes = useMemo(() => {
     if (!nodes) return [];
     // Build ordered list by walking the tree depth-first
-    const sortFn = (a: any, b: any) => (a.reference_code || "").localeCompare(b.reference_code || "", undefined, { numeric: true });
+    const sortFn = (a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || (a.reference_code || "").localeCompare(b.reference_code || "", undefined, { numeric: true });
     const childMap: Record<string, any[]> = {};
     const roots: any[] = [];
     for (const n of nodes) {
