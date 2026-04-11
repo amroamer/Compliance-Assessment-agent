@@ -545,7 +545,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                 const manualKeys = new Set(["answer", "scale_rating", "compliance_check", "target_score"]);
                 const aiKeys = new Set(["review_feedback", "justification", "recommendation"]);
                 const internalKeys = new Set(["assessor_notes"]);
-                const skipKeys = new Set(["evidence_upload", "doc_approved", "doc_signed"]);
+                const skipKeys = new Set(["evidence_upload", "doc_date_check", "doc_approved", "doc_signed"]);
                 const allFields = [...nodeResponse.template.fields].sort((a: any, b: any) => a.sort_order - b.sort_order);
                 const manualFields = allFields.filter((f: any) => manualKeys.has(f.field_key));
                 const aiFields = allFields.filter((f: any) => aiKeys.has(f.field_key));
