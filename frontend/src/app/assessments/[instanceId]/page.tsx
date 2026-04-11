@@ -203,6 +203,20 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
     return m;
   }, [responses]);
 
+  // Sequential node numbers (DFS order across the entire tree)
+  const { nodeNumbers, totalNodes } = useMemo(() => {
+    const numbers: Record<string, number> = {};
+    let counter = 0;
+    const traverse = (items: any[]) => {
+      for (const node of items) {
+        numbers[node.id] = ++counter;
+        if (node._children?.length > 0) traverse(node._children);
+      }
+    };
+    traverse(tree);
+    return { nodeNumbers: numbers, totalNodes: counter };
+  }, [tree]);
+
   // Assessable nodes in tree order (for prev/next navigation)
   const assessableNodes = useMemo(() => {
     if (!nodes) return [];
@@ -308,6 +322,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
     const hasChildren = node._children.length > 0;
     const isSelected = node.id === selectedNodeId;
     const resp = responseMap[node.id];
+    const nodeNum = nodeNumbers[node.id];
 
     return (
       <div key={node.id}>
@@ -324,6 +339,10 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
             </button>
           ) : <div className="w-3 shrink-0" />}
           {node.is_assessable && <StatusDot nodeId={node.id} />}
+          {/* Sequential number badge */}
+          <span className={`text-[9px] font-mono font-bold shrink-0 min-w-[20px] text-right ${isSelected ? "text-kpmg-blue/70" : "text-kpmg-placeholder/70"}`}>
+            {nodeNum}
+          </span>
           {node.reference_code && <span className="font-mono text-[9px] font-bold text-kpmg-placeholder shrink-0">{node.reference_code}</span>}
           <span className={`truncate ${isSelected ? "font-semibold" : ""}`}>{isAr && node.name_ar ? node.name_ar : node.name}</span>
           {resp?.computed_score !== null && resp?.computed_score !== undefined && (
@@ -431,12 +450,19 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
           )}
 
           {/* Navigation */}
-          <div className="flex items-center gap-3 mb-2">
-            <button onClick={() => { setSelectedNodeId(null); setFormData({}); setAiSuggestion(null); }}
-              className={`text-[10px] font-semibold ${!selectedNodeId ? "text-kpmg-blue" : "text-kpmg-placeholder hover:text-kpmg-light"}`}>
-              Overview
-            </button>
-            <button onClick={() => setExpanded(new Set((nodes || []).map((n: any) => n.id)))} className="text-[10px] text-kpmg-placeholder hover:text-kpmg-light font-semibold">Expand all</button>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-3">
+              <button onClick={() => { setSelectedNodeId(null); setFormData({}); setAiSuggestion(null); }}
+                className={`text-[10px] font-semibold ${!selectedNodeId ? "text-kpmg-blue" : "text-kpmg-placeholder hover:text-kpmg-light"}`}>
+                Overview
+              </button>
+              <button onClick={() => setExpanded(new Set((nodes || []).map((n: any) => n.id)))} className="text-[10px] text-kpmg-placeholder hover:text-kpmg-light font-semibold">Expand all</button>
+            </div>
+            {totalNodes > 0 && (
+              <span className="text-[9px] font-mono text-kpmg-placeholder bg-kpmg-light-gray px-1.5 py-0.5 rounded" title="Total nodes in framework">
+                {totalNodes} nodes
+              </span>
+            )}
           </div>
 
           {/* Tree */}

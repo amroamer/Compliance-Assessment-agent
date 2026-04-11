@@ -87,7 +87,17 @@
       "Bash(\"/c/Program Files/Docker/Docker/Docker Desktop.exe\")",
       "Bash(python scripts/load_itgf.py)",
       "Bash(curl -s -o /dev/null -w \"http://localhost:4200 -> HTTP %{http_code}\\\\n\" http://localhost:4200)",
-      "Bash(curl -s -o /dev/null -w \"http://localhost:4200/settings/regulatory-entities -> HTTP %{http_code}\\\\n\" http://localhost:4200/settings/regulatory-entities)"
+      "Bash(curl -s -o /dev/null -w \"http://localhost:4200/settings/regulatory-entities -> HTTP %{http_code}\\\\n\" http://localhost:4200/settings/regulatory-entities)",
+      "Bash(curl -s http://localhost:4201/openapi.json)",
+      "Bash(python3 -c \"import sys,json; paths=json.load\\(sys.stdin\\)['paths']; [print\\(m.upper\\(\\), p\\) for p,methods in paths.items\\(\\) for m in methods if 'bulk-delete' in p or 'cycle-config' in p.lower\\(\\)]\")",
+      "Bash(python3 -c \"import json,sys; routes = json.load\\(sys.stdin\\)['paths']; matches = {k:list\\(v.keys\\(\\)\\) for k,v in routes.items\\(\\) if 'bulk-archive' in k}; print\\(json.dumps\\(matches, indent=2\\)\\)\")",
+      "Bash(python -m pytest tests/test_regulatory_entities.py tests/test_cycles_bulk.py tests/test_frameworks_bulk.py -v)",
+      "Bash(curl -s -X POST http://localhost:8000/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@kpmg.com\",\"password\":\"Admin123!\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/settings/llm-models -H 'Content-Type: application/json' -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(grep -n \"isAr\\\\|name_ar\\\\|label_ar\\\\|description_ar\" /c/projects/AI-Badges/frontend/src/app/assessments/[instanceId]/page.tsx)",
+      "Bash(grep -l \"useLocale\\\\|t\\(\" /c/projects/AI-Badges/frontend/src/app/**/page.tsx)",
+      "Bash(grep -n \"bulk-scales\" \"C:\\\\projects\\\\AI-Badges\\\\backend\\\\app\\\\api\"*.py)",
+      "Bash(python -m pytest tests/test_scales_bulk.py tests/test_documents_bulk.py -v --tb=short)"
     ]
   }
 }

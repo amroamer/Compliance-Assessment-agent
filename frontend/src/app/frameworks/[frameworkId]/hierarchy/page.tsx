@@ -22,7 +22,7 @@ interface FrameworkNode {
   is_active: boolean; is_assessable: boolean; weight: number | null; max_score: number | null;
   children_count: number;
 }
-interface Framework { id: string; name: string; abbreviation: string; version: string | null }
+interface Framework { id: string; name: string; name_ar: string | null; abbreviation: string; version: string | null }
 
 interface NodeForm {
   parent_id: string | null; node_type: string; reference_code: string; name: string; name_ar: string;
@@ -56,6 +56,8 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
   const [importing, setImporting] = useState(false);
   const [editingNodeType, setEditingNodeType] = useState<NodeType | null>(null);
   const [ntForm, setNtForm] = useState({ label: "", name: "", color: "" });
+  const [fwEditOpen, setFwEditOpen] = useState(false);
+  const [fwEditForm, setFwEditForm] = useState({ name: "", name_ar: "", abbreviation: "" });
 
   const openNtEdit = (nt: NodeType) => {
     setEditingNodeType(nt);
@@ -76,6 +78,18 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
       setEditingNodeType(null);
     } catch (e: any) { toast(e.message, "error"); }
   };
+
+  const saveFwName = useMutation({
+    mutationFn: (data: { name: string; name_ar: string; abbreviation: string }) =>
+      api.put(`/frameworks/${frameworkId}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["framework", frameworkId] });
+      queryClient.invalidateQueries({ queryKey: ["frameworks"] });
+      setFwEditOpen(false);
+      toast("Framework name updated", "success");
+    },
+    onError: (e: Error) => toast(e.message, "error"),
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NodeForm>(EMPTY_FORM);
   const [parentBreadcrumb, setParentBreadcrumb] = useState("");
@@ -288,6 +302,22 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
             className="flex items-center gap-1.5 text-sm text-kpmg-gray hover:text-kpmg-navy transition font-body">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
+          {framework && (
+            <div className="flex items-center gap-2 border-l border-kpmg-border pl-4">
+              <div>
+                <span className="text-sm font-heading font-bold text-kpmg-navy">{framework.name}</span>
+                {framework.name_ar && <span className="text-xs text-kpmg-placeholder ml-2 font-arabic" dir="rtl">{framework.name_ar}</span>}
+                <span className="text-xs font-mono font-bold text-kpmg-light ml-2 px-1.5 py-0.5 bg-kpmg-light/10 rounded">{framework.abbreviation}</span>
+              </div>
+              <button
+                onClick={() => { setFwEditForm({ name: framework.name, name_ar: framework.name_ar || "", abbreviation: framework.abbreviation }); setFwEditOpen(true); }}
+                className="p-1 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition"
+                title="Edit framework name"
+              >
+                <Edit className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         <FrameworkTabs frameworkId={frameworkId} />
@@ -591,6 +621,64 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
               <button onClick={() => setEditingNodeType(null)} className="kpmg-btn-secondary text-sm px-5 py-2.5">Cancel</button>
               <button onClick={saveNodeType} disabled={!ntForm.label || !ntForm.name} className="kpmg-btn-primary text-sm px-5 py-2.5 flex items-center gap-1.5">
                 <Save className="w-4 h-4" /> Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Framework Name Edit Modal */}
+      {fwEditOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setFwEditOpen(false)}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-md animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border">
+              <h3 className="text-lg font-heading font-bold text-kpmg-navy">Edit Framework Name</h3>
+              <button onClick={() => setFwEditOpen(false)} className="p-1 text-kpmg-placeholder hover:text-kpmg-gray"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="kpmg-label">Framework Name (English) *</label>
+                <input
+                  type="text"
+                  value={fwEditForm.name}
+                  onChange={(e) => setFwEditForm((f) => ({ ...f, name: e.target.value }))}
+                  className="kpmg-input"
+                  placeholder="e.g. National Data Intelligence Framework"
+                />
+                <p className="text-[10px] text-kpmg-placeholder mt-1">Updates the framework name across all pages and reports</p>
+              </div>
+              <div>
+                <label className="kpmg-label">Framework Name (Arabic)</label>
+                <input
+                  type="text"
+                  dir="rtl"
+                  value={fwEditForm.name_ar}
+                  onChange={(e) => setFwEditForm((f) => ({ ...f, name_ar: e.target.value }))}
+                  className="kpmg-input font-arabic text-right"
+                  placeholder="اسم الإطار بالعربية"
+                />
+              </div>
+              <div>
+                <label className="kpmg-label">Abbreviation *</label>
+                <input
+                  type="text"
+                  value={fwEditForm.abbreviation}
+                  onChange={(e) => setFwEditForm((f) => ({ ...f, abbreviation: e.target.value.toUpperCase() }))}
+                  className="kpmg-input font-mono uppercase"
+                  placeholder="e.g. NDI"
+                />
+                <p className="text-[10px] text-kpmg-placeholder mt-1">Short code used in page titles and headers</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border">
+              <button onClick={() => setFwEditOpen(false)} className="kpmg-btn-secondary text-sm px-5 py-2.5">Cancel</button>
+              <button
+                onClick={() => saveFwName.mutate(fwEditForm)}
+                disabled={saveFwName.isPending || !fwEditForm.name || !fwEditForm.abbreviation}
+                className="kpmg-btn-primary text-sm px-5 py-2.5 flex items-center gap-1.5"
+              >
+                <Save className="w-4 h-4" />
+                {saveFwName.isPending ? "Saving..." : "Save"}
               </button>
             </div>
           </div>

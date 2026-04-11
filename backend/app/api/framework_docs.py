@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 import aiofiles
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel
 from fastapi.responses import FileResponse, StreamingResponse
 from openpyxl import Workbook, load_workbook
 from sqlalchemy import delete, select, func
@@ -132,6 +133,30 @@ async def delete_document(doc_id: uuid.UUID, db: AsyncSession = Depends(get_db),
     if os.path.exists(doc.file_path): os.remove(doc.file_path)
     await db.delete(doc)
     await db.flush()
+
+
+class BulkDeleteDocumentsRequest(BaseModel):
+    ids: list[uuid.UUID]
+
+
+@router.post("/api/frameworks/{fw_id}/documents/bulk-delete")
+async def bulk_delete_documents(fw_id: uuid.UUID, data: BulkDeleteDocumentsRequest, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    if not data.ids:
+        raise HTTPException(400, "No document IDs provided")
+    result = await db.execute(
+        select(FrameworkDocument).where(FrameworkDocument.id.in_(data.ids), FrameworkDocument.framework_id == fw_id)
+    )
+    found = result.scalars().all()
+    if not found:
+        raise HTTPException(404, "None of the specified documents were found")
+    deleted = 0
+    for doc in found:
+        if os.path.exists(doc.file_path):
+            os.remove(doc.file_path)
+        await db.delete(doc)
+        deleted += 1
+    await db.flush()
+    return {"deleted": deleted, "requested": len(data.ids), "not_found": len(data.ids) - deleted}
 
 
 # ============ HIERARCHY: DELETE ALL, EXPORT EXCEL, IMPORT EXCEL ============

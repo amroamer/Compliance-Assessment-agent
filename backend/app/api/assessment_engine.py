@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -37,6 +37,9 @@ class ScaleCreate(BaseModel):
 
 class ScaleUpdate(ScaleCreate):
     pass
+
+class BulkDeleteScalesRequest(BaseModel):
+    ids: list[uuid.UUID]
 
 class FormFieldIn(BaseModel):
     field_key: str; label: str; label_ar: str | None = None
@@ -132,11 +135,41 @@ async def update_scale(fw_id: uuid.UUID, scale_id: uuid.UUID, data: ScaleUpdate,
     await db.flush()
     return _scale_resp(await _get_scale(db, fw_id, scale_id))
 
+@router.post("/api/frameworks/{fw_id}/scales/bulk-delete")
+async def bulk_delete_scales(fw_id: uuid.UUID, data: BulkDeleteScalesRequest, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    if not data.ids:
+        raise HTTPException(400, "No scale IDs provided")
+    result = await db.execute(
+        select(AssessmentScale).where(AssessmentScale.id.in_(data.ids), AssessmentScale.framework_id == fw_id)
+    )
+    found = result.scalars().all()
+    if not found:
+        raise HTTPException(404, "None of the specified scales were found")
+    found_ids = [s.id for s in found]
+    # Nullify FK references before deletion
+    await db.execute(update(AssessmentFormTemplate).where(AssessmentFormTemplate.scale_id.in_(found_ids)).values(scale_id=None))
+    await db.execute(update(AssessmentFormField).where(AssessmentFormField.scale_id.in_(found_ids)).values(scale_id=None))
+    # Remove from junction table
+    from app.models.assessment_engine import assessment_template_scales as ats
+    await db.execute(ats.delete().where(ats.c.scale_id.in_(found_ids)))
+    # Delete levels then scales
+    await db.execute(delete(AssessmentScaleLevel).where(AssessmentScaleLevel.scale_id.in_(found_ids)))
+    await db.execute(delete(AssessmentScale).where(AssessmentScale.id.in_(found_ids)))
+    await db.flush()
+    return {"deleted": len(found), "requested": len(data.ids), "not_found": len(data.ids) - len(found)}
+
+
 @router.delete("/api/frameworks/{fw_id}/scales/{scale_id}", status_code=204)
 async def delete_scale(fw_id: uuid.UUID, scale_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     s = await _get_scale(db, fw_id, scale_id)
     if not s: raise HTTPException(404, "Scale not found")
-    s.is_active = False
+    # Nullify FK references before hard delete
+    await db.execute(update(AssessmentFormTemplate).where(AssessmentFormTemplate.scale_id == scale_id).values(scale_id=None))
+    await db.execute(update(AssessmentFormField).where(AssessmentFormField.scale_id == scale_id).values(scale_id=None))
+    from app.models.assessment_engine import assessment_template_scales as ats
+    await db.execute(ats.delete().where(ats.c.scale_id == scale_id))
+    await db.execute(delete(AssessmentScaleLevel).where(AssessmentScaleLevel.scale_id == scale_id))
+    await db.execute(delete(AssessmentScale).where(AssessmentScale.id == scale_id))
     await db.flush()
 
 async def _get_scale(db, fw_id, scale_id):
