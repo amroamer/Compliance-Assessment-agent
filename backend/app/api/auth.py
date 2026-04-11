@@ -10,7 +10,7 @@ from app.core.security import create_access_token, get_password_hash, verify_pas
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.user import LoginRequest, TokenResponse, UserCreate, UserResponse, UserUpdate, ForgotPasswordRequest, ResetPasswordRequest
+from app.schemas.user import LoginRequest, TokenResponse, UserCreate, UserResponse, UserUpdate, ForgotPasswordRequest, ResetPasswordRequest, BulkDeactivateUsersRequest
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -136,3 +136,57 @@ async def update_user(
     await db.flush()
     await db.refresh(user)
     return user
+
+
+@users_router.delete("/{user_id}", status_code=204)
+async def deactivate_user(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """Deactivate (soft-delete) a single user. Cannot deactivate yourself."""
+    if str(current_user.id) == user_id:
+        raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_active = False
+    await db.flush()
+
+
+@users_router.post("/bulk-deactivate")
+async def bulk_deactivate_users(
+    data: BulkDeactivateUsersRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """Deactivate multiple users at once. Cannot include your own account."""
+    if not data.ids:
+        raise HTTPException(status_code=400, detail="No user IDs provided")
+
+    # Prevent self-deactivation in the bulk selection
+    str_ids = [str(uid) for uid in data.ids]
+    if str(current_user.id) in str_ids:
+        raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
+
+    result = await db.execute(select(User).where(User.id.in_(data.ids)))
+    users = result.scalars().all()
+    if not users:
+        raise HTTPException(status_code=404, detail="No matching users found")
+
+    deactivated = 0
+    already_inactive = 0
+    for u in users:
+        if u.is_active:
+            u.is_active = False
+            deactivated += 1
+        else:
+            already_inactive += 1
+
+    await db.flush()
+    return {
+        "deactivated": deactivated,
+        "already_inactive": already_inactive,
+        "requested": len(data.ids),
+    }

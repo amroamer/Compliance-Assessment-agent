@@ -68,6 +68,120 @@ def test_list_users_admin(http, base_url, admin_headers):
     assert len(r.json()) >= 1
 
 
+# ── Single user deactivate tests ──
+
+def _create_temp_user(http, base_url, admin_headers, suffix=""):
+    """Helper: create a throwaway user and return its id."""
+    import uuid
+    email = f"tmp_{uuid.uuid4().hex[:8]}{suffix}@test.com"
+    r = http.post(f"{base_url}/api/auth/register", headers=admin_headers, json={
+        "email": email, "name": "Temp User", "password": "TempPass123!", "role": "kpmg_user"
+    })
+    assert r.status_code == 201
+    return r.json()["id"], email
+
+
+def test_deactivate_user_success(http, base_url, admin_headers):
+    """Admin can deactivate another user."""
+    uid, _ = _create_temp_user(http, base_url, admin_headers, "_deact")
+    r = http.delete(f"{base_url}/api/users/{uid}", headers=admin_headers)
+    assert r.status_code == 204
+    # Confirm status
+    users = http.get(f"{base_url}/api/users/", headers=admin_headers).json()
+    match = next((u for u in users if u["id"] == uid), None)
+    assert match is not None
+    assert match["is_active"] is False
+
+
+def test_deactivate_user_not_found(http, base_url, admin_headers):
+    """Deactivating a non-existent user returns 404."""
+    r = http.delete(f"{base_url}/api/users/00000000-0000-0000-0000-000000000099", headers=admin_headers)
+    assert r.status_code == 404
+    assert "not found" in r.json()["detail"].lower()
+
+
+def test_cannot_deactivate_self(http, base_url, admin_headers):
+    """Admin cannot deactivate their own account."""
+    me = http.get(f"{base_url}/api/auth/me", headers=admin_headers).json()
+    r = http.delete(f"{base_url}/api/users/{me['id']}", headers=admin_headers)
+    assert r.status_code == 400
+    assert "own account" in r.json()["detail"].lower()
+
+
+def test_deactivate_user_requires_admin(http, base_url):
+    """Unauthenticated requests are rejected."""
+    r = http.delete(f"{base_url}/api/users/00000000-0000-0000-0000-000000000099")
+    assert r.status_code in (401, 403)
+
+
+# ── Bulk deactivate user tests ──
+
+def test_bulk_deactivate_users_single(http, base_url, admin_headers):
+    """Bulk deactivating one user works correctly."""
+    uid, _ = _create_temp_user(http, base_url, admin_headers, "_bulk1")
+    r = http.post(f"{base_url}/api/users/bulk-deactivate", headers=admin_headers, json={"ids": [uid]})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["deactivated"] == 1
+    assert data["requested"] == 1
+
+
+def test_bulk_deactivate_users_multiple(http, base_url, admin_headers):
+    """Bulk deactivating multiple users works."""
+    ids = [_create_temp_user(http, base_url, admin_headers, f"_bulkm{i}")[0] for i in range(3)]
+    r = http.post(f"{base_url}/api/users/bulk-deactivate", headers=admin_headers, json={"ids": ids})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["deactivated"] == 3
+    assert data["requested"] == 3
+    # Confirm all inactive
+    users = http.get(f"{base_url}/api/users/", headers=admin_headers).json()
+    for uid in ids:
+        match = next((u for u in users if u["id"] == uid), None)
+        assert match and match["is_active"] is False
+
+
+def test_bulk_deactivate_already_inactive_counted(http, base_url, admin_headers):
+    """Re-deactivating an already-inactive user reports it in already_inactive."""
+    uid, _ = _create_temp_user(http, base_url, admin_headers, "_bulkai")
+    # Deactivate once
+    http.post(f"{base_url}/api/users/bulk-deactivate", headers=admin_headers, json={"ids": [uid]})
+    # Deactivate again
+    r = http.post(f"{base_url}/api/users/bulk-deactivate", headers=admin_headers, json={"ids": [uid]})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["deactivated"] == 0
+    assert data["already_inactive"] == 1
+
+
+def test_bulk_deactivate_empty_ids(http, base_url, admin_headers):
+    """Empty IDs list returns 400."""
+    r = http.post(f"{base_url}/api/users/bulk-deactivate", headers=admin_headers, json={"ids": []})
+    assert r.status_code == 400
+
+
+def test_bulk_deactivate_nonexistent_ids(http, base_url, admin_headers):
+    """All-nonexistent IDs returns 404."""
+    r = http.post(f"{base_url}/api/users/bulk-deactivate", headers=admin_headers, json={
+        "ids": ["00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002"]
+    })
+    assert r.status_code == 404
+
+
+def test_bulk_deactivate_cannot_include_self(http, base_url, admin_headers):
+    """Including your own ID in the bulk list returns 400."""
+    me = http.get(f"{base_url}/api/auth/me", headers=admin_headers).json()
+    r = http.post(f"{base_url}/api/users/bulk-deactivate", headers=admin_headers, json={"ids": [me["id"]]})
+    assert r.status_code == 400
+    assert "own account" in r.json()["detail"].lower()
+
+
+def test_bulk_deactivate_requires_admin(http, base_url):
+    """Unauthenticated bulk deactivate is rejected."""
+    r = http.post(f"{base_url}/api/users/bulk-deactivate", json={"ids": ["00000000-0000-0000-0000-000000000001"]})
+    assert r.status_code in (401, 403)
+
+
 # ── Forgot password & reset password tests ──
 
 def test_forgot_password_existing_user(http, base_url):
