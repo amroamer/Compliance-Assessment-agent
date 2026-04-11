@@ -286,27 +286,63 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
 
         <FrameworkTabs frameworkId={frameworkId} />
 
-        {/* KPI Cards — uses node type labels from framework, editable */}
-        {nodes && nodeTypes && (
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            {[...nodeTypes].sort((a, b) => a.sort_order - b.sort_order).slice(0, 3).map((nt, idx) => {
-              const colors = ["bg-kpmg-blue/10 text-kpmg-blue", "bg-status-warning/10 text-status-warning", "bg-status-success/10 text-status-success"];
-              const count = nodes.filter((n: any) => n.depth === idx).length;
-              return (
-                <div key={nt.id} className="kpmg-card p-4 flex items-center gap-3 group">
-                  <div className={`w-10 h-10 rounded-card flex items-center justify-center ${colors[idx]?.split(" ")[0] || "bg-kpmg-blue/10"}`}>
-                    <span className={`text-lg font-bold ${colors[idx]?.split(" ")[1] || "text-kpmg-blue"}`}>{count}</span>
+        {/* Level Configurator + KPI Cards */}
+        {nodeTypes && (
+          <div className="mb-6">
+            {/* Level count selector */}
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-xs font-heading font-bold text-kpmg-navy uppercase">Hierarchy Levels:</span>
+              {[1, 2, 3, 4].map((num) => (
+                <button key={num} onClick={async () => {
+                  const sorted = [...nodeTypes].sort((a, b) => a.sort_order - b.sort_order);
+                  const current = sorted.length;
+                  if (num > current) {
+                    // Add missing levels
+                    const defaults = [
+                      { name: "Level1", label: "Level 1", color: "#00338D" },
+                      { name: "Level2", label: "Level 2", color: "#0091DA" },
+                      { name: "Level3", label: "Level 3", color: "#27AE60" },
+                      { name: "Level4", label: "Level 4", color: "#E67E22" },
+                    ];
+                    for (let i = current; i < num; i++) {
+                      try {
+                        await api.post(`/frameworks/${frameworkId}/node-types`, { ...defaults[i], sort_order: i, is_assessable_default: i === num - 1 });
+                      } catch {}
+                    }
+                  } else if (num < current) {
+                    // Delete extra levels (from end)
+                    for (let i = current - 1; i >= num; i--) {
+                      try { await api.delete(`/frameworks/${frameworkId}/node-types/${sorted[i].id}`); } catch {}
+                    }
+                  }
+                  queryClient.invalidateQueries({ queryKey: ["node-types", frameworkId] });
+                }}
+                  className={`w-8 h-8 rounded-full text-sm font-bold transition ${nodeTypes.length === num ? "bg-kpmg-blue text-white" : "bg-kpmg-light-gray text-kpmg-gray hover:bg-kpmg-border"}`}>
+                  {num}
+                </button>
+              ))}
+            </div>
+
+            {/* KPI cards for each level */}
+            <div className={`grid gap-4 mb-2`} style={{ gridTemplateColumns: `repeat(${Math.min(nodeTypes.length, 4)}, 1fr)` }}>
+              {[...nodeTypes].sort((a, b) => a.sort_order - b.sort_order).map((nt, idx) => {
+                const count = nodes ? nodes.filter((n: any) => n.depth === idx).length : 0;
+                return (
+                  <div key={nt.id} className="kpmg-card p-4 flex items-center gap-3 group">
+                    <div className="w-10 h-10 rounded-card flex items-center justify-center shrink-0" style={{ backgroundColor: (nt.color || "#00338D") + "15" }}>
+                      <span className="text-lg font-bold" style={{ color: nt.color || "#00338D" }}>{count}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-heading font-bold text-kpmg-navy truncate">{nt.label}</p>
+                      <p className="text-[10px] text-kpmg-placeholder">Level {idx + 1}</p>
+                    </div>
+                    <button onClick={() => openNtEdit(nt)} className="p-1.5 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition opacity-0 group-hover:opacity-100" title="Edit level">
+                      <Edit className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-heading font-bold text-kpmg-navy">{nt.label}</p>
-                    <p className="text-[10px] text-kpmg-placeholder">Level {idx + 1}</p>
-                  </div>
-                  <button onClick={() => openNtEdit(nt)} className="p-1.5 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition opacity-0 group-hover:opacity-100" title="Rename level">
-                    <Edit className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
 
