@@ -53,7 +53,7 @@ class FrameworkNode(Base):
     max_score: Mapped[Decimal | None] = mapped_column(Numeric(7, 2), nullable=True)
     assessment_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # maturity, compliance
     maturity_level: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-5
-    evidence_type: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    evidence_type: Mapped[str | None] = mapped_column(Text, nullable=True)
     acceptance_criteria: Mapped[str | None] = mapped_column(Text, nullable=True)  # Arabic
     acceptance_criteria_en: Mapped[str | None] = mapped_column(Text, nullable=True)  # English
     spec_references: Mapped[str | None] = mapped_column(String(500), nullable=True)  # e.g. "OD.C.1.1, OD.C.2.1"
