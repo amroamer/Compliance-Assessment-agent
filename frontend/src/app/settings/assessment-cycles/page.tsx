@@ -91,6 +91,7 @@ export default function AssessmentCyclesPage() {
       queryClient.invalidateQueries({ queryKey: ["cycle-configs"] });
       toast("Cycle deleted", "info");
     },
+    onError: (e: Error) => toast(e.message, "error"),
   });
 
   const openCreate = () => { setEditingId(null); setForm(EMPTY_FORM); setError(""); setModalOpen(true); };

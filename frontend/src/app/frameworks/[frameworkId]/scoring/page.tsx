@@ -37,6 +37,7 @@ export default function ScoringPage({ params }: { params: Promise<{ frameworkId:
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/frameworks/${frameworkId}/aggregation-rules/${id}`),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["agg-rules", frameworkId] }); toast("Rule deleted", "info"); },
+    onError: (e: Error) => toast(e.message, "error"),
   });
 
   const METHODS: Record<string, string> = { weighted_average: "Weighted Average", simple_average: "Simple Average", percentage_compliant: "% Compliant", minimum: "Minimum", maximum: "Maximum", sum: "Sum" };

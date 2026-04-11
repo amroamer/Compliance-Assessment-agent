@@ -97,6 +97,7 @@ export default function RegulatoryEntitiesPage() {
       queryClient.invalidateQueries({ queryKey: ["reg-entities"] });
       toast("Entity deactivated", "info");
     },
+    onError: (e: Error) => toast(e.message, "error"),
   });
 
   const deleteMutation = useMutation({
@@ -105,6 +106,7 @@ export default function RegulatoryEntitiesPage() {
       queryClient.invalidateQueries({ queryKey: ["reg-entities"] });
       toast("Entity permanently deleted", "info");
     },
+    onError: (e: Error) => toast(e.message, "error"),
   });
 
   const openCreate = () => {

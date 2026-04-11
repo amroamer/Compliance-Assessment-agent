@@ -9,6 +9,7 @@ import {
   File, Image, FileSpreadsheet, Presentation,
 } from "lucide-react";
 import { useConfirm } from "@/components/ui/ConfirmModal";
+import { useToast } from "@/components/ui/Toast";
 
 interface DocumentItem {
   id: string;
@@ -45,6 +46,7 @@ const formatSize = (bytes: number) => {
 export function DocumentList({ productId, domainId, subRequirementId }: Props) {
   const queryClient = useQueryClient();
   const { confirm } = useConfirm();
+  const { toast } = useToast();
   const { user } = useAuth();
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
 
@@ -60,6 +62,7 @@ export function DocumentList({ productId, domainId, subRequirementId }: Props) {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/documents/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["documents", productId, domainId] }),
+    onError: (e: Error) => toast(e.message, "error"),
   });
 
   if (isLoading) return <div className="h-8 bg-gray-100 rounded animate-pulse" />;

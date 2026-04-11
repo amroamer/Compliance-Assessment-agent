@@ -123,6 +123,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
       queryClient.invalidateQueries({ queryKey: ["nodes", frameworkId] });
       toast("Node deactivated", "info");
     },
+    onError: (e: Error) => toast(e.message, "error"),
   });
 
   // Build tree structure from flat array

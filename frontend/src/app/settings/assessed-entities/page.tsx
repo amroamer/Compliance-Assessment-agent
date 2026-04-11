@@ -93,6 +93,7 @@ export default function AssessedEntitiesPage() {
   const deactivate = useMutation({
     mutationFn: (id: string) => api.delete(`/assessed-entities/${id}`),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["assessed-entities"] }); toast("Entity deactivated", "info"); },
+    onError: (e: Error) => toast(e.message, "error"),
   });
 
   const openCreate = () => {

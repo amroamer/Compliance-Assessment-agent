@@ -7,9 +7,11 @@ import { Header } from "@/components/layout/Header";
 import type { User } from "@/types";
 import { Plus, Users, X , Download, Upload } from "lucide-react";
 import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
+import { useToast } from "@/components/ui/Toast";
 
 export default function UsersPage() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "kpmg_user", assessed_entity_id: "" });
   const [importPreview, setImportPreview] = useState<any>(null);
@@ -36,11 +38,13 @@ export default function UsersPage() {
   const updateRoleMutation = useMutation({
     mutationFn: ({ id, role }: { id: string; role: string }) => api.patch(`/users/${id}`, { role }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+    onError: (e: Error) => toast(e.message, "error"),
   });
 
   const toggleActiveMutation = useMutation({
     mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) => api.patch(`/users/${id}`, { is_active }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+    onError: (e: Error) => toast(e.message, "error"),
   });
 
   const { data: entities } = useQuery<any[]>({ queryKey: ["assessed-entities"], queryFn: () => api.get("/assessed-entities") });

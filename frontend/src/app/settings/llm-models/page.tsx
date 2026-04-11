@@ -42,7 +42,7 @@ export default function LlmModelsPage() {
     onError: (e: Error) => toast(e.message, "error"),
   });
 
-  const deleteMutation = useMutation({ mutationFn: (id: string) => api.delete(`/settings/llm-models/${id}`), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["llm-models"] }); toast("Model removed", "info"); } });
+  const deleteMutation = useMutation({ mutationFn: (id: string) => api.delete(`/settings/llm-models/${id}`), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["llm-models"] }); toast("Model removed", "info"); }, onError: (e: Error) => toast(e.message, "error") });
 
   const testModel = async (id: string) => {
     setTesting(id);

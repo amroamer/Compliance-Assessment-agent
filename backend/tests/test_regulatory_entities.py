@@ -55,3 +55,6 @@ def test_delete_blocked_by_frameworks(http, base_url, admin_headers):
         return  # skip if no SDAIA
     r2 = http.delete(f"{base_url}/api/regulatory-entities/{sdaia['id']}?permanent=true", headers=admin_headers)
     assert r2.status_code == 409
+    # Verify the error message is descriptive (not a generic 500)
+    detail = r2.json().get("detail", "")
+    assert "Cannot delete" in detail or "framework" in detail.lower(), f"Expected descriptive error, got: {detail}"

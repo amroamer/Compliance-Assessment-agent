@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { ChevronDown, ChevronRight, Save, Check, FileText, Paperclip } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 import { FileUploader } from "@/components/documents/FileUploader";
 import { DocumentList } from "@/components/documents/DocumentList";
 
@@ -37,6 +38,7 @@ interface Props {
 
 export function DomainForm({ productId, domainId, subRequirements, existingResponses }: Props) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { user } = useAuth();
   const isViewer = user?.role === "viewer";
 
@@ -68,6 +70,7 @@ export function DomainForm({ productId, domainId, subRequirements, existingRespo
       queryClient.invalidateQueries({ queryKey: ["assessment", productId, domainId] });
       queryClient.invalidateQueries({ queryKey: ["assessments", productId] });
     },
+    onError: (e: Error) => toast(e.message, "error"),
   });
 
   const autoSaveMutation = useMutation({
@@ -78,6 +81,7 @@ export function DomainForm({ productId, domainId, subRequirements, existingRespo
       setTimeout(() => setSavedSubs((prev) => ({ ...prev, [variables.subReqId]: false })), 1500);
       queryClient.invalidateQueries({ queryKey: ["assessments", productId] });
     },
+    onError: (e: Error) => toast(e.message, "error"),
   });
 
   const updateField = (subReqId: string, fieldKey: string, value: string) => {

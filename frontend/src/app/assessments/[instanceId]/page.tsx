@@ -141,6 +141,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
       refetchNode();
       setSaving(false);
     },
+    onError: (e: Error) => { setSaving(false); toast(e.message, "error"); },
   });
 
   // AI Assessment
