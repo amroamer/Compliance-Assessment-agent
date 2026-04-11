@@ -557,9 +557,9 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                   <div key={field.id}>
                     <label className="kpmg-label">{isAr && field.label_ar ? field.label_ar : field.label}</label>
                     {field.help_text && <p className="text-[10px] text-kpmg-placeholder mb-2">{field.help_text}</p>}
-                    {field.field_key === "scale_rating" && nodeResponse.template?.scale?.levels ? (
+                    {field.field_key === "scale_rating" && (field.scale?.levels || nodeResponse.template?.scale?.levels) ? (
                       <div className="grid grid-cols-1 gap-2">
-                        {[...nodeResponse.template.scale.levels].sort((a: any, b: any) => a.sort_order - b.sort_order).map((level: any) => {
+                        {[...(field.scale?.levels || nodeResponse.template.scale.levels)].sort((a: any, b: any) => a.sort_order - b.sort_order).map((level: any) => {
                           const isSelected = currentFormData[field.field_key] != null && parseFloat(currentFormData[field.field_key]) === level.value;
                           return (
                             <button key={level.id} onClick={() => handleFieldChange(field.field_key, level.value)} disabled={isLocked}
@@ -573,9 +573,9 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                           );
                         })}
                       </div>
-                    ) : field.field_key === "target_score" && nodeResponse.template?.scale?.levels ? (
+                    ) : field.field_key === "target_score" && (field.scale?.levels || nodeResponse.template?.scale?.levels) ? (
                       <div className="grid grid-cols-1 gap-2">
-                        {[...nodeResponse.template.scale.levels].sort((a: any, b: any) => a.sort_order - b.sort_order).map((level: any) => {
+                        {[...(field.scale?.levels || nodeResponse.template.scale.levels)].sort((a: any, b: any) => a.sort_order - b.sort_order).map((level: any) => {
                           const isSelected = currentFormData[field.field_key] != null && parseFloat(currentFormData[field.field_key]) === level.value;
                           return (
                             <button key={level.id} onClick={() => handleFieldChange(field.field_key, level.value)} disabled={isLocked}
@@ -591,22 +591,22 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                       </div>
                     ) : field.field_key === "compliance_check" ? (
                       <div className="flex gap-3">
-                        <button onClick={() => handleFieldChange(field.field_key, 1)} disabled={isLocked}
-                          className={`flex-1 p-3 rounded-btn border-2 text-center transition-all ${currentFormData[field.field_key] === 1 ? "border-status-success bg-status-success/10" : "border-kpmg-border hover:border-status-success/40"}`}>
-                          <div className="flex items-center justify-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-status-success flex items-center justify-center text-white text-xs font-bold">1</div>
-                            <span className="text-sm font-semibold text-kpmg-navy">{isAr ? "ملتزم" : "Compliant"}</span>
-                            {currentFormData[field.field_key] === 1 && <Check className="w-5 h-5 text-status-success" />}
-                          </div>
-                        </button>
-                        <button onClick={() => handleFieldChange(field.field_key, 0)} disabled={isLocked}
-                          className={`flex-1 p-3 rounded-btn border-2 text-center transition-all ${currentFormData[field.field_key] === 0 ? "border-status-error bg-status-error/10" : "border-kpmg-border hover:border-status-error/40"}`}>
-                          <div className="flex items-center justify-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-status-error flex items-center justify-center text-white text-xs font-bold">0</div>
-                            <span className="text-sm font-semibold text-kpmg-navy">{isAr ? "غير ملتزم" : "Non-Compliant"}</span>
-                            {currentFormData[field.field_key] === 0 && <Check className="w-5 h-5 text-status-error" />}
-                          </div>
-                        </button>
+                        {(field.scale?.levels || [{ value: 1, label: "Compliant", label_ar: "ملتزم", color: "#27AE60" }, { value: 0, label: "Non-Compliant", label_ar: "غير ملتزم", color: "#C0392B" }])
+                          .sort((a: any, b: any) => b.value - a.value)
+                          .map((level: any) => {
+                          const isSelected = currentFormData[field.field_key] != null && parseFloat(currentFormData[field.field_key]) === level.value;
+                          const isCompliant = level.value > 0;
+                          return (
+                            <button key={level.value} onClick={() => handleFieldChange(field.field_key, level.value)} disabled={isLocked}
+                              className={`flex-1 p-3 rounded-btn border-2 text-center transition-all ${isSelected ? (isCompliant ? "border-status-success bg-status-success/10" : "border-status-error bg-status-error/10") : "border-kpmg-border hover:border-kpmg-light/40"}`}>
+                              <div className="flex items-center justify-center gap-2">
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: level.color || (isCompliant ? "#27AE60" : "#C0392B") }}>{Math.round(level.value)}</div>
+                                <span className="text-sm font-semibold text-kpmg-navy">{isAr && level.label_ar ? level.label_ar : level.label}</span>
+                                {isSelected && <Check className="w-5 h-5" style={{ color: level.color || (isCompliant ? "#27AE60" : "#C0392B") }} />}
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     ) : (
                       <textarea value={currentFormData[field.field_key] || ""} onChange={(e) => handleFieldChange(field.field_key, e.target.value)}

@@ -96,8 +96,10 @@ class AssessmentFormField(Base):
     show_condition: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     placeholder: Mapped[str | None] = mapped_column(String(500), nullable=True)
     help_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scale_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("assessment_scales.id", ondelete="SET NULL"), nullable=True)
 
     template: Mapped["AssessmentFormTemplate"] = relationship(back_populates="fields")
+    scale: Mapped["AssessmentScale | None"] = relationship(lazy="selectin")
 
 
 # ============ LAYER 3: Aggregation Rules ============

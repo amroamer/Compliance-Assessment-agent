@@ -42,6 +42,7 @@ class FormFieldIn(BaseModel):
     field_key: str; label: str; label_ar: str | None = None
     is_required: bool = False; is_visible: bool = True; sort_order: int = 0
     show_condition: dict | None = None; placeholder: str | None = None; help_text: str | None = None
+    scale_id: uuid.UUID | None = None
 
 class FormTemplateCreate(BaseModel):
     node_type_id: uuid.UUID; scale_id: uuid.UUID | None = None
@@ -209,7 +210,9 @@ def _template_resp(t):
         "scale": _scale_resp(t.scale) if t.scale else None,
         "fields": [{"id": str(f.id), "field_key": f.field_key, "label": f.label, "label_ar": f.label_ar,
                      "is_required": f.is_required, "is_visible": f.is_visible, "sort_order": f.sort_order,
-                     "show_condition": f.show_condition, "placeholder": f.placeholder, "help_text": f.help_text}
+                     "show_condition": f.show_condition, "placeholder": f.placeholder, "help_text": f.help_text,
+                     "scale_id": str(f.scale_id) if f.scale_id else None,
+                     "scale": _scale_resp(f.scale) if f.scale else None}
                     for f in (t.fields or [])],
     }
 

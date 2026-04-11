@@ -181,6 +181,7 @@ export default function FormsPage({ params }: { params: Promise<{ frameworkId: s
                                 <div className="flex items-center gap-2 mt-0.5">
                                   <span className="text-[10px] font-mono text-kpmg-placeholder bg-kpmg-light-gray px-1.5 py-0.5 rounded">{f.field_key}</span>
                                   {f.is_required && <span className="text-[10px] font-bold text-status-error">Required</span>}
+                                  {f.scale && <span className="text-[10px] px-1.5 py-0.5 rounded bg-kpmg-light/10 text-kpmg-light font-semibold">Scale: {f.scale.name}</span>}
                                 </div>
                               </div>
                               <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition shrink-0">
@@ -242,6 +243,13 @@ export default function FormsPage({ params }: { params: Promise<{ frameworkId: s
               </div>
               <div><label className="kpmg-label">Placeholder</label><input type="text" value={editingField.field.placeholder || ""} onChange={(e) => setEditingField({ ...editingField, field: { ...editingField.field, placeholder: e.target.value } })} className="kpmg-input" /></div>
               <div><label className="kpmg-label">Help Text</label><textarea value={editingField.field.help_text || ""} onChange={(e) => setEditingField({ ...editingField, field: { ...editingField.field, help_text: e.target.value } })} rows={2} className="kpmg-input resize-none" /></div>
+              <div><label className="kpmg-label">Assessment Scale</label>
+                <select value={editingField.field.scale_id || ""} onChange={(e) => setEditingField({ ...editingField, field: { ...editingField.field, scale_id: e.target.value || null } })} className="kpmg-input">
+                  <option value="">None (no scale)</option>
+                  {(scales || []).map((s: any) => <option key={s.id} value={s.id}>{s.name} ({s.levels?.length || 0} levels)</option>)}
+                </select>
+                <p className="text-[10px] text-kpmg-placeholder mt-1">Assign a scale to this field (for scale_rating, compliance_check, or target_score fields)</p>
+              </div>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border">
               <button onClick={() => setEditingField(null)} className="kpmg-btn-secondary text-sm px-5 py-2.5">Cancel</button>
