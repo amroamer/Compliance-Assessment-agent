@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 
-interface NodeType { id: string; name: string; label: string; color: string | null; is_assessable_default: boolean }
+interface NodeType { id: string; name: string; label: string; color: string | null; sort_order: number; is_assessable_default: boolean }
 interface FrameworkNode {
   id: string; parent_id: string | null; node_type: string; reference_code: string | null;
   name: string; name_ar: string | null; description: string | null; description_ar: string | null;
@@ -65,7 +65,11 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
   const saveNodeType = async () => {
     if (!editingNodeType) return;
     try {
-      await api.put(`/frameworks/${frameworkId}/node-types/${editingNodeType.id}`, ntForm);
+      await api.put(`/frameworks/${frameworkId}/node-types/${editingNodeType.id}`, {
+        ...ntForm,
+        sort_order: editingNodeType.sort_order,
+        is_assessable_default: editingNodeType.is_assessable_default,
+      });
       queryClient.invalidateQueries({ queryKey: ["node-types", frameworkId] });
       queryClient.invalidateQueries({ queryKey: ["nodes", frameworkId] });
       toast("Level name updated", "success");

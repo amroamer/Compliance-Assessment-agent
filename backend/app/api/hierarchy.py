@@ -112,7 +112,7 @@ async def update_node_type(fw_id: uuid.UUID, nt_id: uuid.UUID, data: NodeTypeCre
     nt = result.scalar_one_or_none()
     if not nt:
         raise HTTPException(status_code=404, detail="Node type not found")
-    for k, v in data.model_dump().items():
+    for k, v in data.model_dump(exclude_unset=True).items():
         setattr(nt, k, v)
     await db.flush()
     await db.refresh(nt)
