@@ -28,10 +28,11 @@ class ScaleLevelIn(BaseModel):
     value: float; label: str; label_ar: str | None = None
     description: str | None = None; description_ar: str | None = None
     color: str | None = None; sort_order: int = 0
+    min_threshold: float | None = None; max_threshold: float | None = None
 
 class ScaleCreate(BaseModel):
     name: str; name_ar: str | None = None; description: str | None = None
-    scale_type: str; is_cumulative: bool = False
+    scale_type: str; is_cumulative: bool = False; is_badge_scale: bool = False
     min_value: float | None = None; max_value: float | None = None; step: float | None = None
     levels: list[ScaleLevelIn] = []
 
@@ -99,9 +100,12 @@ async def get_scale(fw_id: uuid.UUID, scale_id: uuid.UUID, db: AsyncSession = De
 
 @router.post("/api/frameworks/{fw_id}/scales", status_code=201)
 async def create_scale(fw_id: uuid.UUID, data: ScaleCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    # Only one badge scale per framework
+    if data.is_badge_scale:
+        await db.execute(update(AssessmentScale).where(AssessmentScale.framework_id == fw_id, AssessmentScale.is_badge_scale == True).values(is_badge_scale=False))
     scale = AssessmentScale(
         framework_id=fw_id, name=data.name, name_ar=data.name_ar, description=data.description,
-        scale_type=data.scale_type, is_cumulative=data.is_cumulative,
+        scale_type=data.scale_type, is_cumulative=data.is_cumulative, is_badge_scale=data.is_badge_scale,
         min_value=Decimal(str(data.min_value)) if data.min_value is not None else None,
         max_value=Decimal(str(data.max_value)) if data.max_value is not None else None,
         step=Decimal(str(data.step)) if data.step is not None else None,
@@ -112,6 +116,8 @@ async def create_scale(fw_id: uuid.UUID, data: ScaleCreate, db: AsyncSession = D
         db.add(AssessmentScaleLevel(
             scale_id=scale.id, value=Decimal(str(lv.value)), label=lv.label, label_ar=lv.label_ar,
             description=lv.description, description_ar=lv.description_ar, color=lv.color, sort_order=lv.sort_order,
+            min_threshold=Decimal(str(lv.min_threshold)) if lv.min_threshold is not None else None,
+            max_threshold=Decimal(str(lv.max_threshold)) if lv.max_threshold is not None else None,
         ))
     await db.flush()
     return _scale_resp(await _get_scale(db, fw_id, scale.id))
@@ -120,8 +126,11 @@ async def create_scale(fw_id: uuid.UUID, data: ScaleCreate, db: AsyncSession = D
 async def update_scale(fw_id: uuid.UUID, scale_id: uuid.UUID, data: ScaleUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     s = await _get_scale(db, fw_id, scale_id)
     if not s: raise HTTPException(404, "Scale not found")
+    # Only one badge scale per framework
+    if data.is_badge_scale:
+        await db.execute(update(AssessmentScale).where(AssessmentScale.framework_id == fw_id, AssessmentScale.is_badge_scale == True, AssessmentScale.id != scale_id).values(is_badge_scale=False))
     s.name = data.name; s.name_ar = data.name_ar; s.description = data.description
-    s.scale_type = data.scale_type; s.is_cumulative = data.is_cumulative
+    s.scale_type = data.scale_type; s.is_cumulative = data.is_cumulative; s.is_badge_scale = data.is_badge_scale
     s.min_value = Decimal(str(data.min_value)) if data.min_value is not None else None
     s.max_value = Decimal(str(data.max_value)) if data.max_value is not None else None
     s.step = Decimal(str(data.step)) if data.step is not None else None
@@ -131,6 +140,8 @@ async def update_scale(fw_id: uuid.UUID, scale_id: uuid.UUID, data: ScaleUpdate,
         db.add(AssessmentScaleLevel(
             scale_id=scale_id, value=Decimal(str(lv.value)), label=lv.label, label_ar=lv.label_ar,
             description=lv.description, description_ar=lv.description_ar, color=lv.color, sort_order=lv.sort_order,
+            min_threshold=Decimal(str(lv.min_threshold)) if lv.min_threshold is not None else None,
+            max_threshold=Decimal(str(lv.max_threshold)) if lv.max_threshold is not None else None,
         ))
     await db.flush()
     return _scale_resp(await _get_scale(db, fw_id, scale_id))
@@ -180,10 +191,13 @@ def _scale_resp(s):
     return {
         "id": str(s.id), "framework_id": str(s.framework_id), "name": s.name, "name_ar": s.name_ar,
         "description": s.description, "scale_type": s.scale_type, "is_cumulative": s.is_cumulative,
+        "is_badge_scale": s.is_badge_scale,
         "min_value": float(s.min_value) if s.min_value else None, "max_value": float(s.max_value) if s.max_value else None,
         "step": float(s.step) if s.step else None, "is_active": s.is_active,
         "levels": [{"id": str(lv.id), "value": float(lv.value), "label": lv.label, "label_ar": lv.label_ar,
-                     "description": lv.description, "description_ar": lv.description_ar, "color": lv.color, "sort_order": lv.sort_order}
+                     "description": lv.description, "description_ar": lv.description_ar, "color": lv.color, "sort_order": lv.sort_order,
+                     "min_threshold": float(lv.min_threshold) if lv.min_threshold is not None else None,
+                     "max_threshold": float(lv.max_threshold) if lv.max_threshold is not None else None}
                     for lv in (s.levels or [])],
     }
 
@@ -795,6 +809,12 @@ async def save_response(inst_id: uuid.UUID, node_id: uuid.UUID, data: dict, db: 
     ))).scalar() or 0
     instance.answered_nodes = answered
     if instance.status == "not_started": instance.status = "in_progress"; instance.started_at = datetime.now(timezone.utc)
+
+    # Auto-recalculate aggregated scores when the actual score changes
+    if score_changed or compliance_changed:
+        from app.services.score_calculation import calculate_all_scores
+        await calculate_all_scores(db, inst_id)
+
     await db.flush()
 
     return {"id": str(resp.id), "status": resp.status, "computed_score": float(resp.computed_score) if resp.computed_score else None,
@@ -1079,6 +1099,21 @@ async def get_scores(inst_id: uuid.UUID, db: AsyncSession = Depends(get_db), cur
     }
 
 
+async def _dynamic_badge_tier(db: AsyncSession, framework_id: uuid.UUID, compliance_pct: float):
+    """Look up badge from the framework's badge scale thresholds."""
+    badge_scale = (await db.execute(
+        select(AssessmentScale).options(selectinload(AssessmentScale.levels))
+        .where(AssessmentScale.framework_id == framework_id, AssessmentScale.is_badge_scale == True)
+    )).scalar_one_or_none()
+    if not badge_scale:
+        return None
+    for level in sorted(badge_scale.levels, key=lambda l: l.sort_order):
+        if level.min_threshold is not None and level.max_threshold is not None:
+            if float(level.min_threshold) <= compliance_pct <= float(level.max_threshold):
+                return {"tier": int(level.value), "label": level.label, "label_ar": level.label_ar, "color": level.color}
+    return None
+
+
 @router.get("/api/assessments/{inst_id}/compliance-stats")
 async def get_compliance_stats(inst_id: uuid.UUID, ai_product_id: uuid.UUID | None = None, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Return compliance status breakdown for an assessment instance."""
@@ -1110,6 +1145,17 @@ async def get_compliance_stats(inst_id: uuid.UUID, ai_product_id: uuid.UUID | No
             if r.status in ("reviewed", "approved"):
                 reviewed += 1
 
+    # Compute compliance percentage and badge
+    scored = compliant + semi_compliant + non_compliant
+    compliance_pct = round((compliant / scored) * 100, 1) if scored > 0 else None
+
+    # Look up badge tier from framework's badge scale
+    badge = None
+    if compliance_pct is not None:
+        inst = (await db.execute(select(AssessmentInstance).where(AssessmentInstance.id == inst_id))).scalar_one_or_none()
+        if inst:
+            badge = await _dynamic_badge_tier(db, inst.framework_id, compliance_pct)
+
     return {
         "total": total,
         "pending": pending,
@@ -1119,6 +1165,10 @@ async def get_compliance_stats(inst_id: uuid.UUID, ai_product_id: uuid.UUID | No
         "non_compliant": non_compliant,
         "reviewed": reviewed,
         "not_reviewed": answered - reviewed,
+        "scored": scored,
+        "compliance_pct": compliance_pct,
+        "compliance_ratio": f"{compliant}/{scored}" if scored > 0 else None,
+        "badge": badge,
     }
 
 
@@ -1336,36 +1386,21 @@ async def get_entity_scores(
                 answered = c["compliant"] + c["semi_compliant"] + c["non_compliant"]
                 c["compliance_pct"] = round((c["compliant"] / answered) * 100) if answered else 0
 
-                # Compute badge tier per product
-                # Badge tiers: 5=Aware (lowest), 4=Adopter, 3=Committed, 2=Trusted, 1=Leader (highest)
-                # Lower number = better badge. 0 = not eligible
-                def _badge_tier(stats):
-                    a = stats["compliant"] + stats["semi_compliant"] + stats["non_compliant"]
-                    if a == 0: return {"tier": 0, "label": "Not Assessed", "color": "#888780"}
-                    cpct = stats["compliant"] / a
-                    ncpct = stats["non_compliant"] / a
-                    if cpct >= 0.95 and ncpct == 0:
-                        return {"tier": 1, "label": "Leader", "label_ar": "رائد", "color": "#27AE60"}
-                    elif cpct >= 0.85 and ncpct == 0:
-                        return {"tier": 2, "label": "Trusted", "label_ar": "موثوق", "color": "#1A3A4A"}
-                    elif cpct >= 0.70 and ncpct <= 0.10:
-                        return {"tier": 3, "label": "Committed", "label_ar": "ملتزم", "color": "#483698"}
-                    elif cpct >= 0.50:
-                        return {"tier": 4, "label": "Adopter", "label_ar": "متبني", "color": "#0091DA"}
-                    elif cpct >= 0.20 or a > 0:
-                        return {"tier": 5, "label": "Aware", "label_ar": "واعي", "color": "#C0392B"}
-                    else:
-                        return {"tier": 0, "label": "Not Assessed", "color": "#888780"}
-
+                # Compute badge tier per product (dynamic from badge scale)
                 for pid, pstats in c["products"].items():
-                    pstats["badge"] = _badge_tier(pstats)
+                    pa = pstats["compliant"] + pstats["semi_compliant"] + pstats["non_compliant"]
+                    ppct = round((pstats["compliant"] / pa) * 100, 1) if pa > 0 else 0
+                    pstats["compliance_pct"] = ppct
+                    pbadge = await _dynamic_badge_tier(db, fw.id, ppct) if pa > 0 else None
+                    pstats["badge"] = pbadge or {"tier": 0, "label": "Not Assessed", "color": "#888780"}
 
-                # Overall badge = worst (highest number) product badge
-                all_badges = [ps["badge"]["tier"] for ps in c["products"].values() if ps["badge"]["tier"] > 0]
-                overall_tier = max(all_badges) if all_badges else 0
-                tier_map = {0: ("Not Assessed", "", "#888780"), 1: ("Leader", "رائد", "#27AE60"), 2: ("Trusted", "موثوق", "#1A3A4A"), 3: ("Committed", "ملتزم", "#483698"), 4: ("Adopter", "متبني", "#0091DA"), 5: ("Aware", "واعي", "#C0392B")}
-                t = tier_map.get(overall_tier, tier_map[0])
-                c["overall_badge"] = {"tier": overall_tier, "label": t[0], "label_ar": t[1], "color": t[2]}
+                # Overall badge = worst product badge (highest tier number = lowest badge)
+                product_badges = [ps["badge"] for ps in c["products"].values() if ps["badge"].get("tier", 0) > 0]
+                if product_badges:
+                    worst = max(product_badges, key=lambda b: b.get("tier", 0))
+                    c["overall_badge"] = worst
+                else:
+                    c["overall_badge"] = {"tier": 0, "label": "Not Assessed", "color": "#888780"}
 
                 # Resolve product names
                 product_ids = [uuid.UUID(pid) for pid in c["products"] if pid != "_entity"]

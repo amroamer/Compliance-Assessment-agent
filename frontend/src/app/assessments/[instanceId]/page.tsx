@@ -100,6 +100,13 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
     enabled: !!selectedNodeId,
   });
 
+  // Fetch aggregated node scores (parent node scores from score calculation)
+  const { data: nodeScoresData } = useQuery<any>({
+    queryKey: ["node-scores", instanceId],
+    queryFn: () => api.get(`/assessments/${instanceId}/scores`),
+    enabled: !!instanceId,
+  });
+
   const [uploading, setUploading] = useState(false);
 
   const handleUpload = async (files: FileList) => {
@@ -138,6 +145,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
       queryClient.invalidateQueries({ queryKey: ["responses", instanceId] });
       queryClient.invalidateQueries({ queryKey: ["assessment", instanceId] });
       queryClient.invalidateQueries({ queryKey: ["compliance-stats", instanceId] });
+      queryClient.invalidateQueries({ queryKey: ["node-scores", instanceId] });
       refetchNode();
       setSaving(false);
     },
@@ -168,6 +176,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
       queryClient.invalidateQueries({ queryKey: ["responses", instanceId] });
       queryClient.invalidateQueries({ queryKey: ["assessment", instanceId] });
       queryClient.invalidateQueries({ queryKey: ["compliance-stats", instanceId] });
+      queryClient.invalidateQueries({ queryKey: ["node-scores", instanceId] });
     } catch (e: any) { toast(e.message, "error"); }
   };
 
@@ -202,6 +211,13 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
     (responses || []).forEach((r) => { m[r.node_id] = r; });
     return m;
   }, [responses]);
+
+  // Node score map (parent node aggregated scores from score calculation)
+  const nodeScoreMap = useMemo(() => {
+    const m: Record<string, any> = {};
+    (nodeScoresData?.node_scores || []).forEach((s: any) => { m[s.node_id] = s; });
+    return m;
+  }, [nodeScoresData]);
 
   // Sequential node numbers (DFS order across the entire tree)
   const { nodeNumbers, totalNodes } = useMemo(() => {
@@ -345,8 +361,20 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
           </span>
           {node.reference_code && <span className="font-mono text-[9px] font-bold text-kpmg-placeholder shrink-0">{node.reference_code}</span>}
           <span className={`truncate ${isSelected ? "font-semibold" : ""}`}>{isAr && node.name_ar ? node.name_ar : node.name}</span>
-          {resp?.computed_score !== null && resp?.computed_score !== undefined && (
+          {/* Leaf node score (assessable) */}
+          {node.is_assessable && resp?.computed_score !== null && resp?.computed_score !== undefined && (
             <span className="ml-auto text-[9px] font-mono font-bold text-kpmg-light shrink-0">L{Math.round(resp.computed_score)}</span>
+          )}
+          {/* Parent node aggregated score */}
+          {!node.is_assessable && nodeScoreMap[node.id] && (
+            <span className="ml-auto text-[9px] font-mono font-bold shrink-0 flex items-center gap-1" title={`${nodeScoreMap[node.id].children_answered}/${nodeScoreMap[node.id].child_count} scored`}>
+              <span className={nodeScoreMap[node.id].meets_minimum === false ? "text-status-error" : "text-kpmg-blue/70"}>
+                {nodeScoreMap[node.id].aggregated_score <= 1
+                  ? `${Math.round(nodeScoreMap[node.id].aggregated_score * 100)}%`
+                  : nodeScoreMap[node.id].aggregated_score.toFixed(1)}
+              </span>
+              <span className="text-kpmg-placeholder">{nodeScoreMap[node.id].children_answered}/{nodeScoreMap[node.id].child_count}</span>
+            </span>
           )}
         </div>
         {hasChildren && isExp && node._children.map((c: any) => renderNode(c, level + 1))}
@@ -403,7 +431,31 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
           {/* Compliance Stats — click to go to overview */}
           {complianceStats && (
             <div className="kpmg-card p-3 mb-3 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setSelectedNodeId(null); setFormData({}); setAiSuggestion(null); }}>
-              <p className="text-[10px] font-semibold text-kpmg-gray uppercase mb-2">Compliance Status</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-semibold text-kpmg-gray uppercase">Compliance</p>
+                {complianceStats.compliance_pct != null && (
+                  <span className="text-lg font-heading font-bold text-kpmg-navy">{complianceStats.compliance_pct}%</span>
+                )}
+              </div>
+              {/* Compliance ratio bar */}
+              {complianceStats.scored > 0 && (
+                <div className="mb-2">
+                  <div className="w-full h-2.5 bg-kpmg-light-gray rounded-full overflow-hidden flex">
+                    <div className="h-full bg-status-success transition-all" style={{ width: `${(complianceStats.compliant / complianceStats.scored) * 100}%` }} />
+                    <div className="h-full bg-status-warning transition-all" style={{ width: `${(complianceStats.semi_compliant / complianceStats.scored) * 100}%` }} />
+                    <div className="h-full bg-status-error transition-all" style={{ width: `${(complianceStats.non_compliant / complianceStats.scored) * 100}%` }} />
+                  </div>
+                  <p className="text-[9px] text-kpmg-placeholder mt-0.5 text-right font-mono">{complianceStats.compliance_ratio} compliant</p>
+                </div>
+              )}
+              {/* Badge tier */}
+              {complianceStats.badge && (
+                <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-btn" style={{ backgroundColor: (complianceStats.badge.color || "#888") + "15" }}>
+                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: complianceStats.badge.color }} />
+                  <span className="text-xs font-heading font-bold" style={{ color: complianceStats.badge.color }}>{complianceStats.badge.label}</span>
+                  {complianceStats.badge.label_ar && <span className="text-xs font-arabic" style={{ color: complianceStats.badge.color }} dir="rtl">{complianceStats.badge.label_ar}</span>}
+                </div>
+              )}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-[10px] text-kpmg-gray"><span className="w-2 h-2 rounded-full bg-status-success shrink-0" />Compliant</span>
@@ -423,7 +475,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                   <span className="text-[10px] font-mono text-kpmg-navy">{complianceStats.answered} / {complianceStats.total}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-kpmg-gray">Not Reviewed</span>
+                  <span className="text-[10px] text-kpmg-gray">Pending</span>
                   <span className="text-[10px] font-mono text-kpmg-navy">{complianceStats.pending}</span>
                 </div>
               </div>
