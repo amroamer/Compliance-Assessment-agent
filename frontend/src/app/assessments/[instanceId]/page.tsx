@@ -354,9 +354,9 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
             </button>
           </div>
 
-          {/* Progress */}
+          {/* Progress — click to go to overview */}
           {instance && (
-            <div className="kpmg-card p-3 mb-3">
+            <div className="kpmg-card p-3 mb-3 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setSelectedNodeId(null); setFormData({}); setAiSuggestion(null); }}>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] font-semibold text-kpmg-gray uppercase">Progress</span>
                 <span className="text-xs font-mono font-bold text-kpmg-navy">{pct}%</span>
@@ -370,9 +370,9 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
             </div>
           )}
 
-          {/* Compliance Stats */}
+          {/* Compliance Stats — click to go to overview */}
           {complianceStats && (
-            <div className="kpmg-card p-3 mb-3">
+            <div className="kpmg-card p-3 mb-3 cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setSelectedNodeId(null); setFormData({}); setAiSuggestion(null); }}>
               <p className="text-[10px] font-semibold text-kpmg-gray uppercase mb-2">Compliance Status</p>
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
