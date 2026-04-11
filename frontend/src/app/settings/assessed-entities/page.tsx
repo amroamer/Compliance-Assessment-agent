@@ -7,7 +7,7 @@ import { api, API_BASE } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
-import { Building2, Plus, Edit, Ban, Search, X, Save, Cpu, Eye, Download, Upload, Image as ImageIcon, Palette } from "lucide-react";
+import { Building2, Plus, Edit, Ban, Search, X, Save, Cpu, Eye, Download, Upload, Image as ImageIcon, Palette, Trash2 } from "lucide-react";
 import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 
@@ -56,10 +56,33 @@ export default function AssessedEntitiesPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Multi-select state ──
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   const { data: entities, isLoading } = useQuery<AssessedEntity[]>({ queryKey: ["assessed-entities"], queryFn: () => api.get("/assessed-entities") });
   const { data: regEntities } = useQuery<any[]>({ queryKey: ["reg-entities-list"], queryFn: () => api.get("/regulatory-entities/") });
 
   const filtered = (entities || []).filter((e) => !search || e.name.toLowerCase().includes(search.toLowerCase()) || e.abbreviation?.toLowerCase().includes(search.toLowerCase()));
+
+  const activeFiltered = filtered.filter((e) => e.status === "Active");
+  const allActiveSelected = activeFiltered.length > 0 && activeFiltered.every((e) => selectedIds.has(e.id));
+  const someSelected = selectedIds.size > 0;
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allActiveSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(activeFiltered.map((e) => e.id)));
+    }
+  };
 
   const saveMutation = useMutation({
     mutationFn: async (data: FormData) => {
@@ -95,6 +118,31 @@ export default function AssessedEntitiesPage() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["assessed-entities"] }); toast("Entity deactivated", "info"); },
     onError: (e: Error) => toast(e.message, "error"),
   });
+
+  const bulkDeactivateMutation = useMutation({
+    mutationFn: (ids: string[]) => api.post("/assessed-entities/bulk-deactivate", { ids }),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["assessed-entities"] });
+      setSelectedIds(new Set());
+      toast(`${data.deactivated} ${data.deactivated === 1 ? "entity" : "entities"} deactivated`, "success");
+    },
+    onError: (e: Error) => toast(e.message, "error"),
+  });
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    const names = (entities || [])
+      .filter((e) => ids.includes(e.id))
+      .map((e) => e.name)
+      .join(", ");
+    const ok = await confirm({
+      title: `Deactivate ${ids.length} ${ids.length === 1 ? "Entity" : "Entities"}`,
+      message: `Are you sure you want to deactivate the following ${ids.length === 1 ? "entity" : "entities"}?\n\n${names}`,
+      variant: "warning",
+      confirmLabel: `Deactivate ${ids.length}`,
+    });
+    if (ok) bulkDeactivateMutation.mutate(ids);
+  };
 
   const openCreate = () => {
     setEditingId(null); setForm(EMPTY); setError(""); setLogoFile(null); setLogoPreview(null); setModalOpen(true);
@@ -150,6 +198,17 @@ export default function AssessedEntitiesPage() {
         <div className="flex items-center justify-between mb-6">
           <div className="relative flex-1 max-w-md"><Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-kpmg-placeholder" /><input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-11" /></div>
           <div className="flex items-center gap-2">
+            {/* Bulk deactivate button — only shown when rows are selected */}
+            {someSelected && (
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkDeactivateMutation.isPending}
+                className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-btn border border-status-error text-status-error hover:bg-status-error hover:text-white transition-colors font-medium"
+              >
+                <Trash2 className="w-4 h-4" />
+                {bulkDeactivateMutation.isPending ? "Deactivating..." : `Deactivate Selected (${selectedIds.size})`}
+              </button>
+            )}
             <button onClick={async () => {
               const r = await fetch(`${API_BASE}/bulk-entities/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
               const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "assessed_entities.xlsx"; a.click(); URL.revokeObjectURL(u);
@@ -174,8 +233,31 @@ export default function AssessedEntitiesPage() {
           <div className="kpmg-card p-16 text-center"><Building2 className="w-14 h-14 text-kpmg-border mx-auto mb-4" /><p className="text-kpmg-gray font-heading font-semibold text-lg">No assessed entities found</p></div>
         ) : (
           <div className="kpmg-card overflow-hidden">
+            {/* Selection summary bar */}
+            {someSelected && (
+              <div className="flex items-center justify-between px-5 py-2.5 bg-kpmg-blue/5 border-b border-kpmg-blue/20">
+                <span className="text-sm font-body text-kpmg-navy font-medium">
+                  {selectedIds.size} {selectedIds.size === 1 ? "entity" : "entities"} selected
+                </span>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="text-xs text-kpmg-gray hover:text-kpmg-navy transition-colors"
+                >
+                  Clear selection
+                </button>
+              </div>
+            )}
             <table className="w-full">
               <thead><tr className="bg-kpmg-blue">
+                <th className="px-4 py-3.5 w-10">
+                  <input
+                    type="checkbox"
+                    checked={allActiveSelected}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-white/40 bg-transparent text-white focus:ring-white/50 cursor-pointer"
+                    title={allActiveSelected ? "Deselect all" : "Select all active"}
+                  />
+                </th>
                 <th className="text-left px-5 py-3.5 text-[13px] font-semibold text-white uppercase tracking-wide">Entity</th>
                 <th className="text-left px-5 py-3.5 text-[13px] font-semibold text-white uppercase tracking-wide">Type</th>
                 <th className="text-left px-5 py-3.5 text-[13px] font-semibold text-white uppercase tracking-wide">Sector</th>
@@ -184,47 +266,64 @@ export default function AssessedEntitiesPage() {
                 <th className="text-right px-5 py-3.5 text-[13px] font-semibold text-white uppercase tracking-wide">Actions</th>
               </tr></thead>
               <tbody>
-                {filtered.map((e, idx) => (
-                  <tr key={e.id} className={`border-b border-kpmg-border hover:bg-kpmg-hover-bg transition-colors cursor-pointer ${idx % 2 === 1 ? "bg-kpmg-light-gray" : "bg-white"}`} onClick={() => router.push(`/entities/${e.id}/overview`)}>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        {e.logo_path ? (
-                          <img src={`${API_BASE}/assessed-entities/${e.id}/logo`} alt="" className="w-8 h-8 rounded-full object-cover border border-kpmg-border" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: e.primary_color || "#00338D" }}>
-                            {e.abbreviation?.charAt(0) || e.name.charAt(0)}
-                          </div>
+                {filtered.map((e, idx) => {
+                  const isSelected = selectedIds.has(e.id);
+                  return (
+                    <tr
+                      key={e.id}
+                      className={`border-b border-kpmg-border hover:bg-kpmg-hover-bg transition-colors cursor-pointer ${isSelected ? "bg-kpmg-blue/5" : idx % 2 === 1 ? "bg-kpmg-light-gray" : "bg-white"}`}
+                      onClick={() => router.push(`/entities/${e.id}/overview`)}
+                    >
+                      <td className="px-4 py-4 w-10" onClick={(ev) => ev.stopPropagation()}>
+                        {e.status === "Active" && (
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelect(e.id)}
+                            className="w-4 h-4 rounded border-kpmg-border text-kpmg-blue focus:ring-kpmg-blue cursor-pointer"
+                          />
                         )}
-                        <div>
-                          <Link href={`/entities/${e.id}/overview`} className="text-sm font-heading font-semibold text-kpmg-navy hover:text-kpmg-light transition-colors">{e.name}</Link>
-                          {e.abbreviation && <p className="text-xs text-kpmg-placeholder">{e.abbreviation}</p>}
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          {e.logo_path ? (
+                            <img src={`${API_BASE}/assessed-entities/${e.id}/logo`} alt="" className="w-8 h-8 rounded-full object-cover border border-kpmg-border" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: e.primary_color || "#00338D" }}>
+                              {e.abbreviation?.charAt(0) || e.name.charAt(0)}
+                            </div>
+                          )}
+                          <div>
+                            <Link href={`/entities/${e.id}/overview`} className="text-sm font-heading font-semibold text-kpmg-navy hover:text-kpmg-light transition-colors">{e.name}</Link>
+                            {e.abbreviation && <p className="text-xs text-kpmg-placeholder">{e.abbreviation}</p>}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-kpmg-gray font-body">
-                      {e.entity_type || "\u2014"}
-                      {e.government_category && <span className="text-xs text-kpmg-placeholder ml-1">({e.government_category})</span>}
-                    </td>
-                    <td className="px-5 py-4 text-sm text-kpmg-gray font-body">{e.sector || "\u2014"}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {(e.regulatory_entities || []).length > 0
-                          ? e.regulatory_entities.map((r: any) => <span key={r.id} className="kpmg-status-draft text-[11px]">{r.abbreviation}</span>)
-                          : e.regulatory_entity
-                            ? <span className="kpmg-status-draft text-[11px]">{e.regulatory_entity.abbreviation}</span>
-                            : <span className="text-xs text-kpmg-placeholder">{"\u2014"}</span>
-                        }
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-center"><span className={e.status === "Active" ? "kpmg-status-complete" : "kpmg-status-not-started"}>{e.status}</span></td>
-                    <td className="px-5 py-4"><div className="flex items-center justify-end gap-1">
-                      <button onClick={async (e2) => { e2.stopPropagation(); router.push(`/entities/${e.id}/overview`); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-blue rounded-btn transition" title="View Dashboard"><Eye className="w-4 h-4" /></button>
-                      <button onClick={async (e2) => { e2.stopPropagation(); router.push(`/settings/assessed-entities/${e.id}/ai-products`); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="AI Products"><Cpu className="w-4 h-4" /></button>
-                      <button onClick={async (e2) => { e2.stopPropagation(); openEdit(e); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Edit"><Edit className="w-4 h-4" /></button>
-                      {e.status === "Active" && <button onClick={async (e2) => { e2.stopPropagation(); if (await confirm({ title: "Deactivate", message: `Deactivate "${e.name}"?`, variant: "warning", confirmLabel: "Deactivate" })) deactivate.mutate(e.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Deactivate"><Ban className="w-4 h-4" /></button>}
-                    </div></td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-kpmg-gray font-body">
+                        {e.entity_type || "\u2014"}
+                        {e.government_category && <span className="text-xs text-kpmg-placeholder ml-1">({e.government_category})</span>}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-kpmg-gray font-body">{e.sector || "\u2014"}</td>
+                      <td className="px-5 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {(e.regulatory_entities || []).length > 0
+                            ? e.regulatory_entities.map((r: any) => <span key={r.id} className="kpmg-status-draft text-[11px]">{r.abbreviation}</span>)
+                            : e.regulatory_entity
+                              ? <span className="kpmg-status-draft text-[11px]">{e.regulatory_entity.abbreviation}</span>
+                              : <span className="text-xs text-kpmg-placeholder">{"\u2014"}</span>
+                          }
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-center"><span className={e.status === "Active" ? "kpmg-status-complete" : "kpmg-status-not-started"}>{e.status}</span></td>
+                      <td className="px-5 py-4"><div className="flex items-center justify-end gap-1">
+                        <button onClick={async (e2) => { e2.stopPropagation(); router.push(`/entities/${e.id}/overview`); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-blue rounded-btn transition" title="View Dashboard"><Eye className="w-4 h-4" /></button>
+                        <button onClick={async (e2) => { e2.stopPropagation(); router.push(`/settings/assessed-entities/${e.id}/ai-products`); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="AI Products"><Cpu className="w-4 h-4" /></button>
+                        <button onClick={async (e2) => { e2.stopPropagation(); openEdit(e); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Edit"><Edit className="w-4 h-4" /></button>
+                        {e.status === "Active" && <button onClick={async (e2) => { e2.stopPropagation(); if (await confirm({ title: "Deactivate", message: `Deactivate "${e.name}"?`, variant: "warning", confirmLabel: "Deactivate" })) deactivate.mutate(e.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Deactivate"><Ban className="w-4 h-4" /></button>}
+                      </div></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

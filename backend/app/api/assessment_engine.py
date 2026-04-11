@@ -64,6 +64,9 @@ class AssessedEntityCreate(BaseModel):
     website: str | None = None; notes: str | None = None; status: str = "Active"
     primary_color: str | None = None; secondary_color: str | None = None
 
+class BulkDeactivateRequest(BaseModel):
+    ids: list[uuid.UUID]
+
 class AssessmentInstanceCreate(BaseModel):
     cycle_id: uuid.UUID; assessed_entity_id: uuid.UUID
 
@@ -362,6 +365,19 @@ async def deactivate_assessed_entity(eid: uuid.UUID, db: AsyncSession = Depends(
     e = r.scalar_one_or_none()
     if not e: raise HTTPException(404, "Entity not found")
     e.status = "Inactive"; await db.flush()
+
+@router.post("/api/assessed-entities/bulk-deactivate")
+async def bulk_deactivate_assessed_entities(data: BulkDeactivateRequest, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    if not data.ids:
+        raise HTTPException(400, "No entity IDs provided")
+    result = await db.execute(select(AssessedEntity).where(AssessedEntity.id.in_(data.ids)))
+    entities = result.scalars().all()
+    if not entities:
+        raise HTTPException(404, "No matching entities found")
+    for e in entities:
+        e.status = "Inactive"
+    await db.flush()
+    return {"deactivated": len(entities), "requested": len(data.ids)}
 
 @router.post("/api/assessed-entities/{eid}/logo")
 async def upload_entity_logo(eid: uuid.UUID, file: UploadFile = File(...), db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin", "kpmg_user"))):
