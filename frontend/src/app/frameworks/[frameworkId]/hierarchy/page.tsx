@@ -54,6 +54,24 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
   const [importPreview, setImportPreview] = useState<any>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
+  const [editingNodeType, setEditingNodeType] = useState<NodeType | null>(null);
+  const [ntForm, setNtForm] = useState({ label: "", name: "", color: "" });
+
+  const openNtEdit = (nt: NodeType) => {
+    setEditingNodeType(nt);
+    setNtForm({ label: nt.label, name: nt.name, color: nt.color || "#00338D" });
+  };
+
+  const saveNodeType = async () => {
+    if (!editingNodeType) return;
+    try {
+      await api.put(`/frameworks/${frameworkId}/node-types/${editingNodeType.id}`, ntForm);
+      queryClient.invalidateQueries({ queryKey: ["node-types", frameworkId] });
+      queryClient.invalidateQueries({ queryKey: ["nodes", frameworkId] });
+      toast("Level name updated", "success");
+      setEditingNodeType(null);
+    } catch (e: any) { toast(e.message, "error"); }
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<NodeForm>(EMPTY_FORM);
   const [parentBreadcrumb, setParentBreadcrumb] = useState("");
@@ -264,21 +282,24 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
 
         <FrameworkTabs frameworkId={frameworkId} />
 
-        {/* KPI Cards — uses node type labels from framework */}
+        {/* KPI Cards — uses node type labels from framework, editable */}
         {nodes && nodeTypes && (
           <div className="grid grid-cols-3 gap-4 mb-6">
             {[...nodeTypes].sort((a, b) => a.sort_order - b.sort_order).slice(0, 3).map((nt, idx) => {
               const colors = ["bg-kpmg-blue/10 text-kpmg-blue", "bg-status-warning/10 text-status-warning", "bg-status-success/10 text-status-success"];
               const count = nodes.filter((n: any) => n.depth === idx).length;
               return (
-                <div key={nt.id} className="kpmg-card p-4 flex items-center gap-3">
+                <div key={nt.id} className="kpmg-card p-4 flex items-center gap-3 group">
                   <div className={`w-10 h-10 rounded-card flex items-center justify-center ${colors[idx]?.split(" ")[0] || "bg-kpmg-blue/10"}`}>
                     <span className={`text-lg font-bold ${colors[idx]?.split(" ")[1] || "text-kpmg-blue"}`}>{count}</span>
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <p className="text-sm font-heading font-bold text-kpmg-navy">{nt.label}</p>
                     <p className="text-[10px] text-kpmg-placeholder">Level {idx + 1}</p>
                   </div>
+                  <button onClick={() => openNtEdit(nt)} className="p-1.5 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition opacity-0 group-hover:opacity-100" title="Rename level">
+                    <Edit className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               );
             })}
@@ -492,6 +513,43 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
           const d = await r.json(); setImporting(false); setImportPreview(null); setImportFile(null);
           if (r.ok) { toast(`Imported ${d.imported} nodes (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["nodes"] }); } else { toast(d.detail || "Import failed", "error"); }
         }} />
+
+      {/* Node Type Edit Modal */}
+      {editingNodeType && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setEditingNodeType(null)}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-sm animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border">
+              <h3 className="text-lg font-heading font-bold text-kpmg-navy">Edit Level Name</h3>
+              <button onClick={() => setEditingNodeType(null)} className="p-1 text-kpmg-placeholder hover:text-kpmg-gray"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="kpmg-label">Display Label *</label>
+                <input type="text" value={ntForm.label} onChange={(e) => setNtForm(f => ({ ...f, label: e.target.value }))} className="kpmg-input" placeholder="e.g. Domain, Pillar, Axis" />
+                <p className="text-[10px] text-kpmg-placeholder mt-1">This is what users see in the hierarchy and KPI cards</p>
+              </div>
+              <div>
+                <label className="kpmg-label">Internal Name *</label>
+                <input type="text" value={ntForm.name} onChange={(e) => setNtForm(f => ({ ...f, name: e.target.value }))} className="kpmg-input font-mono" placeholder="e.g. Domain, Question" />
+                <p className="text-[10px] text-kpmg-placeholder mt-1">Used for data mapping and node type references</p>
+              </div>
+              <div>
+                <label className="kpmg-label">Color</label>
+                <div className="flex items-center gap-3">
+                  <input type="color" value={ntForm.color} onChange={(e) => setNtForm(f => ({ ...f, color: e.target.value }))} className="w-10 h-10 rounded border border-kpmg-border cursor-pointer" />
+                  <input type="text" value={ntForm.color} onChange={(e) => setNtForm(f => ({ ...f, color: e.target.value }))} className="kpmg-input flex-1 font-mono" placeholder="#00338D" />
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border">
+              <button onClick={() => setEditingNodeType(null)} className="kpmg-btn-secondary text-sm px-5 py-2.5">Cancel</button>
+              <button onClick={saveNodeType} disabled={!ntForm.label || !ntForm.name} className="kpmg-btn-primary text-sm px-5 py-2.5 flex items-center gap-1.5">
+                <Save className="w-4 h-4" /> Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
