@@ -140,6 +140,20 @@ export default function FormsPage({ params }: { params: Promise<{ frameworkId: s
                           <Plus className="w-3 h-3" /> Configure
                         </button>
                       )}
+                      {tmpl && (
+                        <button onClick={async (e) => { e.stopPropagation();
+                          if (!await confirm({ title: "Remove Template", message: `Remove the "${tmpl.name}" template and all its fields? This node type will become unconfigured.`, variant: "danger", confirmLabel: "Remove" })) return;
+                          try {
+                            // Delete fields then template
+                            await api.delete(`/frameworks/${frameworkId}/form-templates/${tmpl.id}`);
+                            queryClient.invalidateQueries({ queryKey: ["form-templates"] });
+                            toast("Template removed", "info");
+                            setExpandedId(null);
+                          } catch (err: any) { toast(err.message, "error"); }
+                        }} className="p-1 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Remove template">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       {tmpl && (isExpanded ? <ChevronDown className="w-4 h-4 text-kpmg-placeholder" /> : <ChevronRight className="w-4 h-4 text-kpmg-placeholder" />)}
                     </div>
                   </div>

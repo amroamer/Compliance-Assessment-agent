@@ -195,6 +195,13 @@ async def update_template(fw_id: uuid.UUID, tmpl_id: uuid.UUID, data: FormTempla
     result = await db.execute(select(AssessmentFormTemplate).options(selectinload(AssessmentFormTemplate.fields), selectinload(AssessmentFormTemplate.node_type)).where(AssessmentFormTemplate.id == tmpl_id))
     return _template_resp(result.scalar_one())
 
+@router.delete("/api/frameworks/{fw_id}/form-templates/{tmpl_id}", status_code=204)
+async def delete_template(fw_id: uuid.UUID, tmpl_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    await db.execute(delete(AssessmentFormField).where(AssessmentFormField.template_id == tmpl_id))
+    await db.execute(delete(AssessmentFormTemplate).where(AssessmentFormTemplate.id == tmpl_id))
+    await db.flush()
+
+
 def _template_resp(t):
     return {
         "id": str(t.id), "framework_id": str(t.framework_id), "name": t.name, "description": t.description,
