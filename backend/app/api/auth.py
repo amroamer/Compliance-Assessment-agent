@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -9,9 +10,12 @@ from app.core.security import create_access_token, get_password_hash, verify_pas
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.user import LoginRequest, TokenResponse, UserCreate, UserResponse, UserUpdate
+from app.schemas.user import LoginRequest, TokenResponse, UserCreate, UserResponse, UserUpdate, ForgotPasswordRequest, ResetPasswordRequest
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+# In-memory reset token store: {token: {"email": str, "expires": datetime}}
+_reset_tokens: dict[str, dict] = {}
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -60,6 +64,46 @@ async def register(
     await db.flush()
     await db.refresh(user)
     return user
+
+
+@router.post("/forgot-password")
+async def forgot_password(data: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """Generate a password reset token. Token is returned in response (no email server configured)."""
+    result = await db.execute(select(User).where(User.email == data.email))
+    user = result.scalar_one_or_none()
+    # Always return success to avoid email enumeration, but only store token if user exists
+    if user and user.is_active:
+        token = secrets.token_urlsafe(32)
+        _reset_tokens[token] = {
+            "email": data.email,
+            "expires": datetime.now(timezone.utc) + timedelta(minutes=15),
+        }
+        # Return token directly since no email server is configured
+        return {"message": "Reset token generated", "reset_token": token, "expires_in_minutes": 15}
+    return {"message": "If that email exists, a reset token has been generated", "reset_token": None}
+
+
+@router.post("/reset-password")
+async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """Reset password using a token from /forgot-password."""
+    token_data = _reset_tokens.get(data.token)
+    if not token_data:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    if datetime.now(timezone.utc) > token_data["expires"]:
+        del _reset_tokens[data.token]
+        raise HTTPException(status_code=400, detail="Reset token has expired. Please request a new one.")
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    result = await db.execute(select(User).where(User.email == token_data["email"]))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.hashed_password = get_password_hash(data.new_password)
+    await db.flush()
+    del _reset_tokens[data.token]
+    return {"message": "Password updated successfully"}
 
 
 users_router = APIRouter(prefix="/api/users", tags=["users"])

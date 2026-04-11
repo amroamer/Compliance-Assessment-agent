@@ -5,7 +5,8 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useLocale } from "@/providers/LocaleProvider";
 import { LocaleSwitcher } from "@/components/layout/LocaleSwitcher";
 import { useRouter } from "next/navigation";
-import { Shield } from "lucide-react";
+import Link from "next/link";
+import { Shield, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const { login, loading, user } = useAuth();
@@ -13,6 +14,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -116,15 +118,36 @@ export default function LoginPage() {
 
             <div>
               <label htmlFor="password" className="kpmg-label">{t("auth.password")}</label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="kpmg-input"
-                placeholder={t("auth.passwordPlaceholder")}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="kpmg-input pr-11"
+                  placeholder={t("auth.passwordPlaceholder")}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-kpmg-placeholder hover:text-kpmg-gray transition"
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Forgot password link */}
+            <div className="flex justify-end -mt-2">
+              <Link
+                href="/forgot-password"
+                className="text-xs text-kpmg-light hover:text-kpmg-blue font-body transition-colors"
+              >
+                Forgot password?
+              </Link>
             </div>
 
             <button type="submit" disabled={submitting} className="kpmg-btn-primary w-full">

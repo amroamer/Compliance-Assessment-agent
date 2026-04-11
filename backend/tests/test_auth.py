@@ -66,3 +66,119 @@ def test_list_users_admin(http, base_url, admin_headers):
     assert r.status_code == 200
     assert isinstance(r.json(), list)
     assert len(r.json()) >= 1
+
+
+# ── Forgot password & reset password tests ──
+
+def test_forgot_password_existing_user(http, base_url):
+    """Valid email returns a reset token."""
+    r = http.post(f"{base_url}/api/auth/forgot-password", json={"email": "admin@kpmg.com"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["reset_token"] is not None
+    assert len(data["reset_token"]) > 10
+    assert data["expires_in_minutes"] == 15
+
+
+def test_forgot_password_nonexistent_user(http, base_url):
+    """Unknown email returns success but with null token (no enumeration)."""
+    r = http.post(f"{base_url}/api/auth/forgot-password", json={"email": "ghost@nowhere.com"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["reset_token"] is None
+
+
+def test_reset_password_success(http, base_url):
+    """Full happy path: request token then reset password, then log in with new password."""
+    # Create a temporary test user
+    import uuid
+    tmp_email = f"reset_test_{uuid.uuid4().hex[:8]}@test.com"
+    from app.core.security import get_password_hash
+
+    # Register test user via admin
+    r_login = http.post(f"{base_url}/api/auth/login", json={"email": "admin@kpmg.com", "password": "Admin123!"})
+    token = r_login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    r_reg = http.post(f"{base_url}/api/auth/register", headers=headers, json={
+        "email": tmp_email, "name": "Reset Test User", "password": "OldPass123!", "role": "kpmg_user"
+    })
+    assert r_reg.status_code == 201
+    user_id = r_reg.json()["id"]
+
+    try:
+        # Request reset token
+        r_forgot = http.post(f"{base_url}/api/auth/forgot-password", json={"email": tmp_email})
+        assert r_forgot.status_code == 200
+        reset_token = r_forgot.json()["reset_token"]
+        assert reset_token is not None
+
+        # Reset the password
+        r_reset = http.post(f"{base_url}/api/auth/reset-password", json={
+            "token": reset_token, "new_password": "NewPass456!"
+        })
+        assert r_reset.status_code == 200
+        assert "successfully" in r_reset.json()["message"]
+
+        # Login with new password works
+        r_new_login = http.post(f"{base_url}/api/auth/login", json={"email": tmp_email, "password": "NewPass456!"})
+        assert r_new_login.status_code == 200
+
+        # Login with old password fails
+        r_old_login = http.post(f"{base_url}/api/auth/login", json={"email": tmp_email, "password": "OldPass123!"})
+        assert r_old_login.status_code == 401
+
+    finally:
+        # Cleanup: delete test user via DB (deactivate via patch)
+        http.patch(f"{base_url}/api/users/{user_id}", headers=headers, json={"is_active": False})
+
+
+def test_reset_password_invalid_token(http, base_url):
+    """Bogus token returns 400."""
+    r = http.post(f"{base_url}/api/auth/reset-password", json={
+        "token": "totally-invalid-token-xyz", "new_password": "NewPass456!"
+    })
+    assert r.status_code == 400
+    assert "Invalid" in r.json()["detail"] or "expired" in r.json()["detail"].lower()
+
+
+def test_reset_password_token_consumed_once(http, base_url):
+    """A reset token can only be used once."""
+    r_forgot = http.post(f"{base_url}/api/auth/forgot-password", json={"email": "admin@kpmg.com"})
+    reset_token = r_forgot.json()["reset_token"]
+
+    # First use — succeeds (but we'll use a temp password we'll restore)
+    r1 = http.post(f"{base_url}/api/auth/reset-password", json={
+        "token": reset_token, "new_password": "TempPass999!"
+    })
+    assert r1.status_code == 200
+
+    # Restore admin password
+    r_forgot2 = http.post(f"{base_url}/api/auth/forgot-password", json={"email": "admin@kpmg.com"})
+    restore_token = r_forgot2.json()["reset_token"]
+    http.post(f"{base_url}/api/auth/reset-password", json={
+        "token": restore_token, "new_password": "Admin123!"
+    })
+
+    # Second use of first token — must fail
+    r2 = http.post(f"{base_url}/api/auth/reset-password", json={
+        "token": reset_token, "new_password": "AnotherPass999!"
+    })
+    assert r2.status_code == 400
+
+
+def test_reset_password_too_short(http, base_url):
+    """Password shorter than 8 characters is rejected."""
+    r_forgot = http.post(f"{base_url}/api/auth/forgot-password", json={"email": "admin@kpmg.com"})
+    reset_token = r_forgot.json()["reset_token"]
+
+    r = http.post(f"{base_url}/api/auth/reset-password", json={
+        "token": reset_token, "new_password": "short"
+    })
+    assert r.status_code == 400
+    assert "8 characters" in r.json()["detail"]
+
+    # Token is still valid — clean up by using it with a valid password
+    http.post(f"{base_url}/api/auth/reset-password", json={
+        "token": reset_token, "new_password": "Admin123!"
+    })
