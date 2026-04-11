@@ -20,11 +20,12 @@ export default function ScoringPage({ params }: { params: Promise<{ frameworkId:
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<any>({ parent_node_type_id: "", child_node_type_id: "", method: "simple_average", minimum_acceptable: "", round_to: 2 });
+  const [form, setForm] = useState<any>({ parent_node_type_id: "", child_node_type_id: "", method: "simple_average", minimum_acceptable: "", round_to: 2, badge_scale_id: "" });
 
   const { data: fw } = useQuery<any>({ queryKey: ["framework", frameworkId], queryFn: () => api.get(`/frameworks/${frameworkId}`) });
   const { data: rules } = useQuery<any[]>({ queryKey: ["agg-rules", frameworkId], queryFn: () => api.get(`/frameworks/${frameworkId}/aggregation-rules`) });
   const { data: nodeTypes } = useQuery<any[]>({ queryKey: ["node-types", frameworkId], queryFn: () => api.get(`/frameworks/${frameworkId}/node-types`) });
+  const { data: scales } = useQuery<any[]>({ queryKey: ["scales", frameworkId], queryFn: () => api.get(`/frameworks/${frameworkId}/scales`) });
 
   const saveMutation = useMutation({
     mutationFn: (data: any) => editingId
@@ -44,7 +45,7 @@ export default function ScoringPage({ params }: { params: Promise<{ frameworkId:
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ parent_node_type_id: "", child_node_type_id: "", method: "simple_average", minimum_acceptable: "", round_to: 2 });
+    setForm({ parent_node_type_id: "", child_node_type_id: "", method: "simple_average", minimum_acceptable: "", round_to: 2, badge_scale_id: "" });
     setModalOpen(true);
   };
 
@@ -56,6 +57,7 @@ export default function ScoringPage({ params }: { params: Promise<{ frameworkId:
       method: r.method,
       minimum_acceptable: r.minimum_acceptable?.toString() || "",
       round_to: r.round_to ?? 2,
+      badge_scale_id: r.badge_scale_id || "",
     });
     setModalOpen(true);
   };
@@ -108,6 +110,7 @@ export default function ScoringPage({ params }: { params: Promise<{ frameworkId:
                   <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-kpmg-light/10 text-kpmg-light">{METHODS[r.method] || r.method}</span>
                   {r.minimum_acceptable && <span className="text-[10px] text-status-warning font-bold">min: {r.minimum_acceptable}</span>}
                   {r.round_to != null && <span className="text-[10px] text-kpmg-placeholder">round: {r.round_to}</span>}
+                  {r.badge_scale && <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-status-success/10 text-status-success">Badge: {r.badge_scale.name}</span>}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button onClick={async (e) => { e.stopPropagation(); openEdit(r); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Edit">
@@ -164,10 +167,47 @@ export default function ScoringPage({ params }: { params: Promise<{ frameworkId:
                   <p className="text-[10px] text-kpmg-placeholder mt-0.5">Decimal places</p>
                 </div>
               </div>
+              <div className="border-t border-kpmg-border pt-4">
+                <label className="kpmg-label">Badge Scale <span className="text-kpmg-placeholder font-normal">(optional)</span></label>
+                <select value={form.badge_scale_id} onChange={(e) => setForm((f: any) => ({ ...f, badge_scale_id: e.target.value || null }))} className="kpmg-input">
+                  <option value="">No badge mapping</option>
+                  {(scales || []).filter((s: any) => s.levels?.some((l: any) => l.min_threshold != null)).map((s: any) => (
+                    <option key={s.id} value={s.id}>{s.name}{s.name_ar ? ` — ${s.name_ar}` : ""}</option>
+                  ))}
+                  {/* Also show all ordinal scales as options */}
+                  {(scales || []).filter((s: any) => s.scale_type === "ordinal" && !s.levels?.some((l: any) => l.min_threshold != null)).map((s: any) => (
+                    <option key={s.id} value={s.id}>{s.name} (no thresholds configured)</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-kpmg-placeholder mt-0.5">
+                  Map the aggregated compliance % to a badge tier. Configure threshold ranges on the scale&apos;s levels.
+                </p>
+                {form.badge_scale_id && (() => {
+                  const bs = (scales || []).find((s: any) => s.id === form.badge_scale_id);
+                  if (!bs?.levels?.length) return null;
+                  return (
+                    <div className="mt-2 bg-kpmg-light-gray rounded-btn p-3 space-y-1">
+                      <p className="text-[10px] font-semibold text-kpmg-gray uppercase mb-1">Badge Tiers</p>
+                      {bs.levels.sort((a: any, b: any) => a.sort_order - b.sort_order).map((lv: any) => (
+                        <div key={lv.sort_order} className="flex items-center gap-2 text-xs">
+                          <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: lv.color || "#888" }} />
+                          <span className="font-semibold text-kpmg-navy w-20">{lv.label}</span>
+                          {lv.label_ar && <span className="text-kpmg-gray w-12 text-right font-arabic" dir="rtl">{lv.label_ar}</span>}
+                          {lv.min_threshold != null && lv.max_threshold != null ? (
+                            <span className="text-kpmg-placeholder font-mono">{lv.min_threshold}% — {lv.max_threshold}%</span>
+                          ) : (
+                            <span className="text-status-warning text-[10px]">no thresholds set</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border">
               <button onClick={() => setModalOpen(false)} className="kpmg-btn-secondary text-sm px-5 py-2.5">Cancel</button>
-              <button onClick={() => saveMutation.mutate({ ...form, minimum_acceptable: form.minimum_acceptable ? parseFloat(form.minimum_acceptable) : null })} disabled={!form.parent_node_type_id || !form.child_node_type_id || saveMutation.isPending} className="kpmg-btn-primary text-sm px-5 py-2.5 flex items-center gap-1.5">
+              <button onClick={() => saveMutation.mutate({ ...form, minimum_acceptable: form.minimum_acceptable ? parseFloat(form.minimum_acceptable) : null, badge_scale_id: form.badge_scale_id || null })} disabled={!form.parent_node_type_id || !form.child_node_type_id || saveMutation.isPending} className="kpmg-btn-primary text-sm px-5 py-2.5 flex items-center gap-1.5">
                 <Save className="w-4 h-4" />{saveMutation.isPending ? "Saving..." : "Save"}
               </button>
             </div>

@@ -32,7 +32,7 @@ class ScaleLevelIn(BaseModel):
 
 class ScaleCreate(BaseModel):
     name: str; name_ar: str | None = None; description: str | None = None
-    scale_type: str; is_cumulative: bool = False; is_badge_scale: bool = False
+    scale_type: str; is_cumulative: bool = False
     min_value: float | None = None; max_value: float | None = None; step: float | None = None
     levels: list[ScaleLevelIn] = []
 
@@ -56,6 +56,7 @@ class AggRuleCreate(BaseModel):
     parent_node_type_id: uuid.UUID; child_node_type_id: uuid.UUID
     method: str; formula: str | None = None
     minimum_acceptable: float | None = None; round_to: int = 2
+    badge_scale_id: uuid.UUID | None = None
 
 class AssessedEntityCreate(BaseModel):
     name: str; name_ar: str | None = None; abbreviation: str | None = None
@@ -100,12 +101,9 @@ async def get_scale(fw_id: uuid.UUID, scale_id: uuid.UUID, db: AsyncSession = De
 
 @router.post("/api/frameworks/{fw_id}/scales", status_code=201)
 async def create_scale(fw_id: uuid.UUID, data: ScaleCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
-    # Only one badge scale per framework
-    if data.is_badge_scale:
-        await db.execute(update(AssessmentScale).where(AssessmentScale.framework_id == fw_id, AssessmentScale.is_badge_scale == True).values(is_badge_scale=False))
     scale = AssessmentScale(
         framework_id=fw_id, name=data.name, name_ar=data.name_ar, description=data.description,
-        scale_type=data.scale_type, is_cumulative=data.is_cumulative, is_badge_scale=data.is_badge_scale,
+        scale_type=data.scale_type, is_cumulative=data.is_cumulative,
         min_value=Decimal(str(data.min_value)) if data.min_value is not None else None,
         max_value=Decimal(str(data.max_value)) if data.max_value is not None else None,
         step=Decimal(str(data.step)) if data.step is not None else None,
@@ -126,11 +124,8 @@ async def create_scale(fw_id: uuid.UUID, data: ScaleCreate, db: AsyncSession = D
 async def update_scale(fw_id: uuid.UUID, scale_id: uuid.UUID, data: ScaleUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     s = await _get_scale(db, fw_id, scale_id)
     if not s: raise HTTPException(404, "Scale not found")
-    # Only one badge scale per framework
-    if data.is_badge_scale:
-        await db.execute(update(AssessmentScale).where(AssessmentScale.framework_id == fw_id, AssessmentScale.is_badge_scale == True, AssessmentScale.id != scale_id).values(is_badge_scale=False))
     s.name = data.name; s.name_ar = data.name_ar; s.description = data.description
-    s.scale_type = data.scale_type; s.is_cumulative = data.is_cumulative; s.is_badge_scale = data.is_badge_scale
+    s.scale_type = data.scale_type; s.is_cumulative = data.is_cumulative
     s.min_value = Decimal(str(data.min_value)) if data.min_value is not None else None
     s.max_value = Decimal(str(data.max_value)) if data.max_value is not None else None
     s.step = Decimal(str(data.step)) if data.step is not None else None
@@ -191,7 +186,6 @@ def _scale_resp(s):
     return {
         "id": str(s.id), "framework_id": str(s.framework_id), "name": s.name, "name_ar": s.name_ar,
         "description": s.description, "scale_type": s.scale_type, "is_cumulative": s.is_cumulative,
-        "is_badge_scale": s.is_badge_scale,
         "min_value": float(s.min_value) if s.min_value else None, "max_value": float(s.max_value) if s.max_value else None,
         "step": float(s.step) if s.step else None, "is_active": s.is_active,
         "levels": [{"id": str(lv.id), "value": float(lv.value), "label": lv.label, "label_ar": lv.label_ar,
@@ -297,7 +291,7 @@ def _template_resp(t):
 @router.get("/api/frameworks/{fw_id}/aggregation-rules")
 async def list_agg_rules(fw_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(
-        select(AggregationRule).options(selectinload(AggregationRule.parent_node_type), selectinload(AggregationRule.child_node_type))
+        select(AggregationRule).options(selectinload(AggregationRule.parent_node_type), selectinload(AggregationRule.child_node_type), selectinload(AggregationRule.badge_scale).selectinload(AssessmentScale.levels))
         .where(AggregationRule.framework_id == fw_id)
     )
     return [_rule_resp(r) for r in result.scalars().all()]
@@ -309,11 +303,11 @@ async def create_agg_rule(fw_id: uuid.UUID, data: AggRuleCreate, db: AsyncSessio
         child_node_type_id=data.child_node_type_id, method=data.method,
         formula=data.formula,
         minimum_acceptable=Decimal(str(data.minimum_acceptable)) if data.minimum_acceptable is not None else None,
-        round_to=data.round_to,
+        round_to=data.round_to, badge_scale_id=data.badge_scale_id,
     )
     db.add(rule)
     await db.flush()
-    result = await db.execute(select(AggregationRule).options(selectinload(AggregationRule.parent_node_type), selectinload(AggregationRule.child_node_type)).where(AggregationRule.id == rule.id))
+    result = await db.execute(select(AggregationRule).options(selectinload(AggregationRule.parent_node_type), selectinload(AggregationRule.child_node_type), selectinload(AggregationRule.badge_scale).selectinload(AssessmentScale.levels)).where(AggregationRule.id == rule.id))
     return _rule_resp(result.scalar_one())
 
 @router.put("/api/frameworks/{fw_id}/aggregation-rules/{rule_id}")
@@ -324,8 +318,9 @@ async def update_agg_rule(fw_id: uuid.UUID, rule_id: uuid.UUID, data: AggRuleCre
     rule.parent_node_type_id = data.parent_node_type_id; rule.child_node_type_id = data.child_node_type_id
     rule.method = data.method; rule.formula = data.formula; rule.round_to = data.round_to
     rule.minimum_acceptable = Decimal(str(data.minimum_acceptable)) if data.minimum_acceptable is not None else None
+    rule.badge_scale_id = data.badge_scale_id
     await db.flush()
-    result = await db.execute(select(AggregationRule).options(selectinload(AggregationRule.parent_node_type), selectinload(AggregationRule.child_node_type)).where(AggregationRule.id == rule_id))
+    result = await db.execute(select(AggregationRule).options(selectinload(AggregationRule.parent_node_type), selectinload(AggregationRule.child_node_type), selectinload(AggregationRule.badge_scale).selectinload(AssessmentScale.levels)).where(AggregationRule.id == rule_id))
     return _rule_resp(result.scalar_one())
 
 @router.delete("/api/frameworks/{fw_id}/aggregation-rules/{rule_id}", status_code=204)
@@ -343,6 +338,8 @@ def _rule_resp(r):
         "method": r.method, "formula": r.formula,
         "minimum_acceptable": float(r.minimum_acceptable) if r.minimum_acceptable else None,
         "round_to": r.round_to,
+        "badge_scale_id": str(r.badge_scale_id) if r.badge_scale_id else None,
+        "badge_scale": _scale_resp(r.badge_scale) if r.badge_scale else None,
     }
 
 
@@ -1100,14 +1097,15 @@ async def get_scores(inst_id: uuid.UUID, db: AsyncSession = Depends(get_db), cur
 
 
 async def _dynamic_badge_tier(db: AsyncSession, framework_id: uuid.UUID, compliance_pct: float):
-    """Look up badge from the framework's badge scale thresholds."""
-    badge_scale = (await db.execute(
-        select(AssessmentScale).options(selectinload(AssessmentScale.levels))
-        .where(AssessmentScale.framework_id == framework_id, AssessmentScale.is_badge_scale == True)
+    """Look up badge from the framework's aggregation rule badge scale thresholds."""
+    # Find an aggregation rule for this framework that has a badge_scale_id configured
+    rule_with_badge = (await db.execute(
+        select(AggregationRule).options(selectinload(AggregationRule.badge_scale).selectinload(AssessmentScale.levels))
+        .where(AggregationRule.framework_id == framework_id, AggregationRule.badge_scale_id.isnot(None))
     )).scalar_one_or_none()
-    if not badge_scale:
+    if not rule_with_badge or not rule_with_badge.badge_scale:
         return None
-    for level in sorted(badge_scale.levels, key=lambda l: l.sort_order):
+    for level in sorted(rule_with_badge.badge_scale.levels, key=lambda l: l.sort_order):
         if level.min_threshold is not None and level.max_threshold is not None:
             if float(level.min_threshold) <= compliance_pct <= float(level.max_threshold):
                 return {"tier": int(level.value), "label": level.label, "label_ar": level.label_ar, "color": level.color}

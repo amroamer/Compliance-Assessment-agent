@@ -44,7 +44,6 @@ class AssessmentScale(Base):
     step: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    is_badge_scale: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -136,11 +135,13 @@ class AggregationRule(Base):
     formula: Mapped[str | None] = mapped_column(Text, nullable=True)
     minimum_acceptable: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     round_to: Mapped[int] = mapped_column(Integer, default=2)
+    badge_scale_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("assessment_scales.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     parent_node_type = relationship("NodeType", foreign_keys=[parent_node_type_id], lazy="selectin")
     child_node_type = relationship("NodeType", foreign_keys=[child_node_type_id], lazy="selectin")
+    badge_scale = relationship("AssessmentScale", foreign_keys=[badge_scale_id], lazy="selectin")
 
 
 # ============ LAYER 4: Assessment Runtime ============

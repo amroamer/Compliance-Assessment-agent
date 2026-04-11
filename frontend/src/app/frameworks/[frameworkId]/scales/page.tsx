@@ -11,7 +11,7 @@ import { Plus, Edit, X, Save, Trash2, ChevronDown, ChevronRight, Download, Uploa
 import { useConfirm } from "@/components/ui/ConfirmModal";
 
 interface ScaleLevel { id?: string; value: number; label: string; label_ar: string; description: string; description_ar: string; color: string; sort_order: number; min_threshold: number | null; max_threshold: number | null }
-interface Scale { id: string; name: string; name_ar: string | null; description: string | null; scale_type: string; is_cumulative: boolean; is_badge_scale: boolean; min_value: number | null; max_value: number | null; step: number | null; is_active: boolean; levels: ScaleLevel[] }
+interface Scale { id: string; name: string; name_ar: string | null; description: string | null; scale_type: string; is_cumulative: boolean; min_value: number | null; max_value: number | null; step: number | null; is_active: boolean; levels: ScaleLevel[] }
 
 export default function ScalesPage({ params }: { params: Promise<{ frameworkId: string }> }) {
   const { frameworkId } = use(params);
@@ -24,7 +24,7 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
   const [importing, setImporting] = useState(false);
   const [expandedScale, setExpandedScale] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<any>({ name: "", name_ar: "", description: "", scale_type: "ordinal", is_cumulative: false, is_badge_scale: false, min_value: "", max_value: "", step: "", levels: [] });
+  const [form, setForm] = useState<any>({ name: "", name_ar: "", description: "", scale_type: "ordinal", is_cumulative: false, min_value: "", max_value: "", step: "", levels: [] });
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -83,10 +83,10 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
     onError: (e: Error) => toast(e.message, "error"),
   });
 
-  const openCreate = () => { setEditingId(null); setForm({ name: "", name_ar: "", description: "", scale_type: "ordinal", is_cumulative: false, is_badge_scale: false, min_value: "", max_value: "", step: "", levels: [] }); setModalOpen(true); };
+  const openCreate = () => { setEditingId(null); setForm({ name: "", name_ar: "", description: "", scale_type: "ordinal", is_cumulative: false, min_value: "", max_value: "", step: "", levels: [] }); setModalOpen(true); };
   const openEdit = (s: Scale) => {
     setEditingId(s.id);
-    setForm({ name: s.name, name_ar: s.name_ar || "", description: s.description || "", scale_type: s.scale_type, is_cumulative: s.is_cumulative, is_badge_scale: s.is_badge_scale || false,
+    setForm({ name: s.name, name_ar: s.name_ar || "", description: s.description || "", scale_type: s.scale_type, is_cumulative: s.is_cumulative,
       min_value: s.min_value?.toString() || "", max_value: s.max_value?.toString() || "", step: s.step?.toString() || "",
       levels: s.levels.map(l => ({ ...l, value: l.value.toString(), color: l.color || "", min_threshold: l.min_threshold?.toString() ?? "", max_threshold: l.max_threshold?.toString() ?? "" })),
     });
@@ -223,7 +223,6 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
                             <h3 className="font-heading font-bold text-kpmg-navy">{s.name}</h3>
                             <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-kpmg-light/10 text-kpmg-light">{s.scale_type}</span>
                             {s.is_cumulative && <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-status-warning/10 text-status-warning">Cumulative</span>}
-                            {s.is_badge_scale && <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-status-success/10 text-status-success">Badge Scale</span>}
                             <span className="text-[10px] text-kpmg-placeholder">{s.levels.length} levels</span>
                           </div>
                           {s.name_ar && <p className="text-xs text-kpmg-gray mt-0.5 pl-6" dir="rtl">{s.name_ar}</p>}
@@ -316,14 +315,10 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
                     <option value="numeric">Numeric</option>
                   </select>
                 </div>
-                <div className="flex items-end pb-3 gap-5">
+                <div className="flex items-end pb-3">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={form.is_cumulative} onChange={(e) => setForm((f: any) => ({ ...f, is_cumulative: e.target.checked }))} className="w-4 h-4 rounded" />
                     <span className="text-sm font-body text-kpmg-navy">Cumulative</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={form.is_badge_scale} onChange={(e) => setForm((f: any) => ({ ...f, is_badge_scale: e.target.checked }))} className="w-4 h-4 rounded border-status-success text-status-success" />
-                    <span className="text-sm font-body text-kpmg-navy">Badge Scale</span>
                   </label>
                 </div>
               </div>
@@ -343,9 +338,6 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
                     </label>
                     <button type="button" onClick={addLevel} className="kpmg-btn-ghost text-xs flex items-center gap-1"><Plus className="w-3 h-3" /> Add Level</button>
                   </div>
-                  {form.is_badge_scale && (
-                    <p className="text-[10px] text-status-success font-body mb-1">Badge scale — define compliance % ranges for each badge level</p>
-                  )}
                   <div className="space-y-2">
                     {form.levels.map((lv: any, i: number) => (
                       <div key={i} className="flex items-center gap-2 p-2 bg-kpmg-light-gray rounded-btn flex-wrap">
@@ -353,13 +345,9 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
                         <input type="text" value={lv.label} onChange={(e) => updateLevel(i, "label", e.target.value)} className="kpmg-input flex-1 py-1.5 text-xs" placeholder="Label (EN)" />
                         <input type="text" dir="rtl" value={lv.label_ar} onChange={(e) => updateLevel(i, "label_ar", e.target.value)} className="kpmg-input flex-1 py-1.5 text-xs font-arabic text-right" placeholder="Label (AR)" />
                         <input type="color" value={lv.color || "#cccccc"} onChange={(e) => updateLevel(i, "color", e.target.value)} className="w-8 h-8 rounded border border-kpmg-border cursor-pointer" />
-                        {form.is_badge_scale && (
-                          <>
-                            <input type="number" value={lv.min_threshold ?? ""} onChange={(e) => updateLevel(i, "min_threshold", e.target.value)} className="kpmg-input w-16 text-center py-1.5 text-xs" placeholder="Min%" />
-                            <span className="text-[10px] text-kpmg-placeholder">—</span>
-                            <input type="number" value={lv.max_threshold ?? ""} onChange={(e) => updateLevel(i, "max_threshold", e.target.value)} className="kpmg-input w-16 text-center py-1.5 text-xs" placeholder="Max%" />
-                          </>
-                        )}
+                        <input type="number" value={lv.min_threshold ?? ""} onChange={(e) => updateLevel(i, "min_threshold", e.target.value)} className="kpmg-input w-16 text-center py-1.5 text-xs" placeholder="Min%" title="Badge threshold min %" />
+                        <span className="text-[10px] text-kpmg-placeholder">—</span>
+                        <input type="number" value={lv.max_threshold ?? ""} onChange={(e) => updateLevel(i, "max_threshold", e.target.value)} className="kpmg-input w-16 text-center py-1.5 text-xs" placeholder="Max%" title="Badge threshold max %" />
                         <button onClick={() => removeLevel(i)} className="p-1 text-kpmg-placeholder hover:text-status-error"><Trash2 className="w-3.5 h-3.5" /></button>
                       </div>
                     ))}
