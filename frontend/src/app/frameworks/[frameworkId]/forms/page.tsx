@@ -117,6 +117,29 @@ export default function FormsPage({ params }: { params: Promise<{ frameworkId: s
                     <div className="flex items-center gap-2 shrink-0">
                       {tmpl ? <CheckCircle className="w-4 h-4 text-status-success" /> : <Circle className="w-4 h-4 text-kpmg-border" />}
                       <span className={`text-xs font-semibold ${tmpl ? "text-status-success" : "text-kpmg-placeholder"}`}>{tmpl ? "Configured" : "Not configured"}</span>
+                      {!tmpl && (
+                        <button onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await api.post(`/frameworks/${frameworkId}/form-templates`, {
+                              name: `${fw?.abbreviation || ""} ${nt.label} Assessment Form`,
+                              node_type_id: nt.id, scale_id: scales?.[0]?.id || null,
+                              fields: [
+                                { field_key: "evidence_upload", label: "Supporting Evidence", label_ar: "الأدلة الداعمة", is_required: true, is_visible: true, sort_order: 0 },
+                                { field_key: "review_feedback", label: "Review Feedback & Comments", label_ar: "ملاحظات المراجعة والتعليقات", is_required: false, is_visible: true, sort_order: 1 },
+                                { field_key: "justification", label: "Justification", label_ar: "التبرير", is_required: false, is_visible: true, sort_order: 2 },
+                                { field_key: "recommendation", label: "Recommendations", label_ar: "التوصيات", is_required: false, is_visible: true, sort_order: 3 },
+                                { field_key: "assessor_notes", label: "Internal Notes", label_ar: "ملاحظات داخلية", is_required: false, is_visible: true, sort_order: 4 },
+                              ]
+                            });
+                            queryClient.invalidateQueries({ queryKey: ["form-templates"] });
+                            toast("Template created", "success");
+                            setExpandedId(nt.id);
+                          } catch (err: any) { toast(err.message, "error"); }
+                        }} className="kpmg-btn-primary text-[10px] px-3 py-1.5 flex items-center gap-1">
+                          <Plus className="w-3 h-3" /> Configure
+                        </button>
+                      )}
                       {tmpl && (isExpanded ? <ChevronDown className="w-4 h-4 text-kpmg-placeholder" /> : <ChevronRight className="w-4 h-4 text-kpmg-placeholder" />)}
                     </div>
                   </div>
