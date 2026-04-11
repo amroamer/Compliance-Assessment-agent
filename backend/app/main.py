@@ -154,7 +154,7 @@ async def seed_node_types():
         fw_types = {
             "NDI": [("Domain", "Domain", "#0091DA", False), ("Question", "Question", "#E67E22", True), ("Specification", "Specification", "#27AE60", True)],
             "NAII": [("Pillar", "Pillar", "#00338D", False), ("Sub-Pillar", "Sub-Pillar", "#0091DA", False), ("Indicator", "Indicator", "#27AE60", True)],
-            "AI_BADGES": [("Domain", "Domain", "#483698", False), ("Component", "Component", "#0091DA", False), ("Control Requirement", "Control Requirement", "#27AE60", True)],
+            "AI_BADGES": [("Report", "Report", "#483698", False), ("Requirement", "Requirement", "#27AE60", True)],
             "QIYAS": [("Axis", "Axis", "#27AE60", False), ("Domain", "Domain", "#0091DA", False), ("Question", "Question", "#E67E22", True)],
         }
 

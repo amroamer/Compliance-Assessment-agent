@@ -81,8 +81,8 @@ async def seed_templates():
                 ("recommendation", "Recommendations", False, 3, None, None, None),
                 ("assessor_notes", "Internal Notes", False, 4, None, None, None),
             ]),
-            # AI_BADGES — requirement
-            ("AI_BADGES", "requirement", "AI Badges Tier", "AI Badges Requirement Assessment Form", [
+            # AI_BADGES — Requirement
+            ("AI_BADGES", "Requirement", "AI Badges Compliance Level", "AI Badges Requirement Assessment Form", [
                 ("scale_rating", "Badge Tier", True, 0, None, None, None),
                 ("evidence_upload", "Supporting Evidence", True, 1, None, None, None),
                 ("justification", "Justification", True, 2, None, None, None),
@@ -158,8 +158,8 @@ async def seed_aggregation_rules():
             ("NAII", "Sub-Pillar", "domain", "simple_average", None),
             # NAII: Pillar <- Sub-Pillar (weighted_average)
             ("NAII", "Pillar", "Sub-Pillar", "weighted_average", None),
-            # AI_BADGES: Domain <- requirement (simple_average)
-            ("AI_BADGES", "Domain", "requirement", "simple_average", None),
+            # AI_BADGES: Report <- Requirement (simple_average)
+            ("AI_BADGES", "Report", "Requirement", "simple_average", None),
             # QIYAS: Domain <- Question (simple_average)
             ("QIYAS", "Domain", "Question", "simple_average", None),
             # QIYAS: Axis <- Domain (weighted_average)
