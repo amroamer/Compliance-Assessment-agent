@@ -3,7 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -241,21 +241,20 @@ async def deactivate_entity(
     if not entity:
         raise HTTPException(status_code=404, detail="Regulatory entity not found")
     if permanent:
-        # Remove framework links first
+        # Check if any compliance frameworks reference this entity (can't delete if so)
+        fw_count = (await db.execute(
+            select(func.count()).select_from(ComplianceFramework).where(ComplianceFramework.entity_id == entity_id)
+        )).scalar() or 0
+        if fw_count > 0:
+            raise HTTPException(status_code=409, detail=f"Cannot delete: {fw_count} compliance framework(s) are owned by this entity. Reassign them first.")
+        # Remove framework links
         await db.execute(delete(EntityFramework).where(EntityFramework.entity_id == entity_id))
-        # Nullify assessed entity references
+        # Clean up assessed entity references
         from app.models.assessment_engine import AssessedEntity, entity_regulatory_entities as ere_table
+        from sqlalchemy import update
         await db.execute(ere_table.delete().where(ere_table.c.regulatory_entity_id == entity_id))
         await db.execute(
-            select(AssessedEntity).where(AssessedEntity.regulatory_entity_id == entity_id)
-        )
-        from sqlalchemy import update
-        await db.execute(
             update(AssessedEntity).where(AssessedEntity.regulatory_entity_id == entity_id).values(regulatory_entity_id=None)
-        )
-        # Nullify compliance framework references
-        await db.execute(
-            update(ComplianceFramework).where(ComplianceFramework.entity_id == entity_id).values(entity_id=None)
         )
         await db.delete(entity)
         await db.flush()

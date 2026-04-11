@@ -161,3 +161,48 @@ cat backups/backup.sql | docker exec -i ai-badges-db-1 psql -U aibadges -d aibad
 - **Export 401**: Use `fetch()` with Bearer token, not `<a href>` links
 - **FK constraint on delete**: Nullify references before deleting (scales, nodes, etc.)
 - **`#REF!` in Excel imports**: Use data_only=True with openpyxl; cross-reference from other sheets
+
+---
+
+## Unit Testing Rules
+
+### When to Write Tests
+- Every new function, method, endpoint, or component MUST have at least one unit test.
+- Every bug fix MUST include a regression test that reproduces the bug before the fix.
+- If modifying existing code that has no tests, write tests for the modified code before changing it.
+
+### Test Structure
+- Detect the project's existing test framework before writing tests:
+  - JavaScript/TypeScript: check for jest, vitest, mocha, or playwright in package.json
+  - Python: check for pytest, unittest, or nose in requirements.txt / pyproject.toml
+  - Java/Kotlin: check for JUnit or TestNG in pom.xml / build.gradle
+  - Go: use the built-in testing package
+  - Rust: use the built-in #[test] module
+  - If no test framework exists, recommend one and install it after my approval.
+
+- Follow the existing test file naming and location conventions in the project.
+  - If none exist, use: `tests/` or `__tests__/` directory, mirroring the source structure.
+
+### What Every Test Must Cover
+1. **Happy path** — the function works correctly with valid input.
+2. **Edge cases** — empty inputs, nulls, boundary values, large inputs.
+3. **Error handling** — invalid inputs throw or return the expected error.
+
+### Test Quality Standards
+- Each test must have a clear, descriptive name that explains what it verifies.
+  - Good: `test_login_fails_with_expired_token`
+  - Bad: `test1`, `testLogin`, `it works`
+- Tests must be independent — no test should depend on another test's output.
+- No hardcoded secrets, API keys, or external service calls in tests. Use mocks.
+- Tests must run fast. Mock external dependencies (APIs, databases, file system).
+
+### After Writing Tests
+1. Run the full test suite — all tests must pass, not just the new ones.
+2. If any existing test breaks, fix the code or the test before reporting done.
+3. Report test results: number of tests run, passed, failed.
+
+### Do NOT
+- Write tests that always pass regardless of implementation (e.g., `expect(true).toBe(true)`).
+- Skip writing tests because "the function is simple."
+- Mock the thing you are testing — only mock its dependencies.
+- Write tests after reporting done. Tests are part of the task, not an afterthought.
