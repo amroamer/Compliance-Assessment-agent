@@ -29,6 +29,10 @@ class RegEntityCreate(BaseModel):
     frameworks: list[str] = []
 
 
+class BulkRegEntityRequest(BaseModel):
+    ids: list[uuid.UUID]
+
+
 class RegEntityUpdate(BaseModel):
     name: str | None = None
     name_ar: str | None = None
@@ -261,3 +265,72 @@ async def deactivate_entity(
     else:
         entity.status = "Inactive"
         await db.flush()
+
+
+@router.post("/bulk-deactivate")
+async def bulk_deactivate_entities(
+    data: BulkRegEntityRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """Soft-deactivate multiple regulatory entities at once."""
+    if not data.ids:
+        raise HTTPException(status_code=400, detail="No entity IDs provided")
+    result = await db.execute(select(RegulatoryEntity).where(RegulatoryEntity.id.in_(data.ids)))
+    entities = result.scalars().all()
+    if not entities:
+        raise HTTPException(status_code=404, detail="No matching entities found")
+    deactivated = 0
+    already_inactive = 0
+    for e in entities:
+        if e.status == "Active":
+            e.status = "Inactive"
+            deactivated += 1
+        else:
+            already_inactive += 1
+    await db.flush()
+    return {"deactivated": deactivated, "already_inactive": already_inactive, "requested": len(data.ids)}
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_entities(
+    data: BulkRegEntityRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """Permanently delete multiple regulatory entities. Blocked if any own compliance frameworks."""
+    if not data.ids:
+        raise HTTPException(status_code=400, detail="No entity IDs provided")
+    result = await db.execute(select(RegulatoryEntity).where(RegulatoryEntity.id.in_(data.ids)))
+    entities = result.scalars().all()
+    if not entities:
+        raise HTTPException(status_code=404, detail="No matching entities found")
+
+    # Check each entity for framework ownership blocks
+    blocked = []
+    for e in entities:
+        fw_count = (await db.execute(
+            select(func.count()).select_from(ComplianceFramework).where(ComplianceFramework.entity_id == e.id)
+        )).scalar() or 0
+        if fw_count > 0:
+            blocked.append(f"{e.abbreviation} ({fw_count} framework{'s' if fw_count > 1 else ''})")
+
+    if blocked:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete: the following entities own compliance frameworks and must have them reassigned first: {', '.join(blocked)}"
+        )
+
+    # Safe to delete all
+    from app.models.assessment_engine import AssessedEntity, entity_regulatory_entities as ere_table
+    from sqlalchemy import update
+    for e in entities:
+        await db.execute(delete(EntityFramework).where(EntityFramework.entity_id == e.id))
+        await db.execute(ere_table.delete().where(ere_table.c.regulatory_entity_id == e.id))
+        await db.execute(
+            update(AssessedEntity).where(AssessedEntity.regulatory_entity_id == e.id).values(regulatory_entity_id=None)
+        )
+        await db.delete(e)
+
+    await db.flush()
+    return {"deleted": len(entities), "requested": len(data.ids)}

@@ -7,11 +7,12 @@ import { api, API_BASE } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import {
-  BookOpen, Plus, Edit, ChevronRight, X, Save, Download, Upload,
+  BookOpen, Plus, Edit, ChevronRight, X, Save, Download, Upload, Archive,
 } from "lucide-react";
 import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
-interface RegEntity { id: string; name: string; abbreviation: string }
+interface RegEntity { id: string; name: string; abbreviation: string; status?: string }
 
 interface Framework {
   id: string;
@@ -36,6 +37,7 @@ const EMPTY_FORM: FormData = { name: "", abbreviation: "", name_ar: "", descript
 export default function FrameworksPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [entityFilter, setEntityFilter] = useState("");
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
@@ -45,6 +47,7 @@ export default function FrameworksPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: frameworks, isLoading } = useQuery<Framework[]>({
     queryKey: ["frameworks", entityFilter],
@@ -77,6 +80,16 @@ export default function FrameworksPage() {
     onError: (err: Error) => setError(err.message),
   });
 
+  const bulkArchiveMutation = useMutation({
+    mutationFn: (ids: string[]) => api.post("/frameworks/bulk-archive", { ids }),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["frameworks"] });
+      setSelectedIds(new Set());
+      toast(`Archived ${data.archived} framework${data.archived !== 1 ? "s" : ""}`, "info");
+    },
+    onError: (e: Error) => toast(e.message, "error"),
+  });
+
   const openCreate = () => { setEditingId(null); setForm(EMPTY_FORM); setError(""); setModalOpen(true); };
   const openEdit = (fw: Framework) => {
     setEditingId(fw.id);
@@ -87,6 +100,37 @@ export default function FrameworksPage() {
     });
     setError("");
     setModalOpen(true);
+  };
+
+  // Selection helpers
+  const allFrameworks = frameworks || [];
+  const activeFrameworks = allFrameworks.filter((fw) => fw.status !== "Archived");
+  const toggleSelect = (id: string) => setSelectedIds((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const toggleSelectAll = () => {
+    if (selectedIds.size === activeFrameworks.length && activeFrameworks.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(activeFrameworks.map((fw) => fw.id)));
+    }
+  };
+  const someSelected = selectedIds.size > 0;
+  const allActiveSelected = activeFrameworks.length > 0 && selectedIds.size === activeFrameworks.length;
+
+  const handleBulkArchive = async () => {
+    const ids = Array.from(selectedIds);
+    const selectedFws = allFrameworks.filter((fw) => ids.includes(fw.id));
+    const names = selectedFws.map((fw) => fw.abbreviation).join(", ");
+    const ok = await confirm({
+      title: `Archive ${ids.length} Framework${ids.length !== 1 ? "s" : ""}`,
+      message: `Archive: ${names}? Archived frameworks will no longer appear in active assessment cycles.`,
+      variant: "warning",
+      confirmLabel: "Archive",
+    });
+    if (ok) bulkArchiveMutation.mutate(ids);
   };
 
   return (
@@ -105,6 +149,16 @@ export default function FrameworksPage() {
             {entities?.map((e) => <option key={e.id} value={e.id}>{e.abbreviation} — {e.name}</option>)}
           </select>
           <div className="flex items-center gap-2">
+            {someSelected && (
+              <button
+                onClick={handleBulkArchive}
+                disabled={bulkArchiveMutation.isPending}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-status-warning border border-status-warning rounded-btn hover:bg-[#FFF7ED] transition"
+              >
+                <Archive className="w-4 h-4" />
+                Archive ({selectedIds.size})
+              </button>
+            )}
             <button onClick={async () => { const r = await fetch(`${API_BASE}/bulk-frameworks/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "frameworks.xlsx"; a.click(); URL.revokeObjectURL(u); }} className="kpmg-btn-secondary flex items-center gap-2 text-sm"><Download className="w-4 h-4" /> Export</button>
             <label className="kpmg-btn-secondary flex items-center gap-2 text-sm cursor-pointer"><Upload className="w-4 h-4" /> Import<input type="file" accept=".xlsx" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; setImportFile(file); const fd = new FormData(); fd.append("file", file); const r = await fetch(`${API_BASE}/bulk-frameworks/import-excel?preview=true`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd }); const p = await r.json(); if (r.ok) setImportPreview(p); e.target.value = ""; }} /></label>
             <button onClick={openCreate} className="kpmg-btn-primary flex items-center gap-2">
@@ -113,56 +167,97 @@ export default function FrameworksPage() {
           </div>
         </div>
 
+        {/* Selection summary */}
+        {someSelected && (
+          <div className="mb-4 px-4 py-2 bg-kpmg-hover-bg border border-kpmg-border rounded-btn text-sm text-kpmg-gray flex items-center gap-2">
+            <span className="font-semibold text-kpmg-navy">{selectedIds.size}</span> framework{selectedIds.size !== 1 ? "s" : ""} selected
+            <button onClick={() => setSelectedIds(new Set())} className="ml-2 text-xs text-kpmg-light hover:text-kpmg-navy underline">Clear selection</button>
+          </div>
+        )}
+
         {/* Framework Cards */}
         {isLoading ? (
           <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-20 kpmg-skeleton" />)}</div>
-        ) : !frameworks?.length ? (
+        ) : !allFrameworks.length ? (
           <div className="kpmg-card p-16 text-center">
             <BookOpen className="w-14 h-14 text-kpmg-border mx-auto mb-4" />
             <p className="text-kpmg-gray font-heading font-semibold text-lg">No frameworks found</p>
             <p className="text-sm text-kpmg-placeholder mt-1 font-body">Create your first compliance framework</p>
           </div>
         ) : (
-          <div className="space-y-3 animate-stagger">
-            {frameworks.map((fw) => (
-              <div key={fw.id} className="kpmg-card-hover flex items-center p-4 group cursor-pointer" onClick={() => router.push(`/frameworks/${fw.id}/hierarchy`)}>
-                {/* Icon */}
-                <div className="w-12 h-12 rounded-card bg-kpmg-navy flex items-center justify-center shrink-0 mr-4">
-                  <BookOpen className="w-5 h-5 text-white" />
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-heading font-bold text-kpmg-navy">
-                    {fw.name} <span className="text-kpmg-gray font-normal">({fw.abbreviation})</span>
-                  </p>
-                  <p className="text-xs text-kpmg-placeholder font-body">
-                    {fw.entity?.abbreviation || "—"}
-                    {fw.version && <span className="ml-2 text-kpmg-gray">&middot; {fw.version}</span>}
-                  </p>
-                </div>
-
-                {/* Status */}
-                <span className={`mr-4 text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                  fw.status === "Active" ? "bg-status-success/10 text-status-success" :
-                  fw.status === "Draft" ? "bg-status-warning/10 text-status-warning" :
-                  "bg-kpmg-light-gray text-kpmg-placeholder"
-                }`}>
-                  {fw.status}
-                </span>
-
-                {/* Actions */}
-                <button onClick={(e) => { e.stopPropagation(); openEdit(fw); }}
-                  className="p-2 text-kpmg-placeholder hover:text-kpmg-light hover:bg-kpmg-hover-bg rounded-btn transition opacity-0 group-hover:opacity-100 mr-1">
-                  <Edit className="w-4 h-4" />
-                </button>
-                <button onClick={(e) => { e.stopPropagation(); router.push(`/frameworks/${fw.id}/hierarchy`); }}
-                  className="p-2 text-kpmg-placeholder hover:text-kpmg-light hover:bg-kpmg-hover-bg rounded-btn transition">
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+          <>
+            {/* Select all bar */}
+            {activeFrameworks.length > 0 && (
+              <div className="flex items-center gap-2 px-1 mb-3">
+                <input
+                  type="checkbox"
+                  checked={allActiveSelected}
+                  ref={(el) => { if (el) el.indeterminate = someSelected && !allActiveSelected; }}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 accent-kpmg-navy cursor-pointer"
+                  title={allActiveSelected ? "Deselect all" : "Select all non-archived"}
+                />
+                <span className="text-xs text-kpmg-placeholder font-body">Select all non-archived ({activeFrameworks.length})</span>
               </div>
-            ))}
-          </div>
+            )}
+            <div className="space-y-3 animate-stagger">
+              {allFrameworks.map((fw) => (
+                <div
+                  key={fw.id}
+                  className={`kpmg-card-hover flex items-center p-4 group cursor-pointer ${selectedIds.has(fw.id) ? "ring-2 ring-kpmg-light" : ""} ${fw.status === "Archived" ? "opacity-60" : ""}`}
+                  onClick={() => router.push(`/frameworks/${fw.id}/hierarchy`)}
+                >
+                  {/* Checkbox — only for non-archived */}
+                  {fw.status !== "Archived" ? (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(fw.id)}
+                      onChange={() => toggleSelect(fw.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-4 h-4 accent-kpmg-navy cursor-pointer shrink-0 mr-3"
+                    />
+                  ) : (
+                    <div className="w-4 h-4 shrink-0 mr-3" />
+                  )}
+
+                  {/* Icon */}
+                  <div className="w-12 h-12 rounded-card bg-kpmg-navy flex items-center justify-center shrink-0 mr-4">
+                    <BookOpen className="w-5 h-5 text-white" />
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-heading font-bold text-kpmg-navy">
+                      {fw.name} <span className="text-kpmg-gray font-normal">({fw.abbreviation})</span>
+                    </p>
+                    <p className="text-xs text-kpmg-placeholder font-body">
+                      {fw.entity?.abbreviation || "—"}
+                      {fw.version && <span className="ml-2 text-kpmg-gray">&middot; {fw.version}</span>}
+                    </p>
+                  </div>
+
+                  {/* Status */}
+                  <span className={`mr-4 text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                    fw.status === "Active" ? "bg-status-success/10 text-status-success" :
+                    fw.status === "Draft" ? "bg-status-warning/10 text-status-warning" :
+                    "bg-kpmg-light-gray text-kpmg-placeholder"
+                  }`}>
+                    {fw.status}
+                  </span>
+
+                  {/* Actions */}
+                  <button onClick={(e) => { e.stopPropagation(); openEdit(fw); }}
+                    className="p-2 text-kpmg-placeholder hover:text-kpmg-light hover:bg-kpmg-hover-bg rounded-btn transition opacity-0 group-hover:opacity-100 mr-1">
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); router.push(`/frameworks/${fw.id}/hierarchy`); }}
+                    className="p-2 text-kpmg-placeholder hover:text-kpmg-light hover:bg-kpmg-hover-bg rounded-btn transition">
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 

@@ -30,6 +30,9 @@ class LlmModelCreate(BaseModel):
     context_window: int = 8192; supports_documents: bool = False
     is_default: bool = False; description: str | None = None
 
+class BulkDeleteModelsRequest(BaseModel):
+    ids: list[uuid.UUID]
+
 def _mask_key(key: str | None) -> str | None:
     if not key: return None
     return "****" + key[-4:] if len(key) > 4 else "****"
@@ -85,6 +88,34 @@ async def delete_model(model_id: uuid.UUID, db: AsyncSession = Depends(get_db), 
     m = (await db.execute(select(LlmModel).where(LlmModel.id == model_id))).scalar_one_or_none()
     if not m: raise HTTPException(404, "Model not found")
     m.is_active = False; await db.flush()
+
+@router.post("/api/settings/llm-models/bulk-delete")
+async def bulk_delete_models(data: BulkDeleteModelsRequest, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    """Soft-delete multiple LLM models at once."""
+    if not data.ids:
+        raise HTTPException(400, "No model IDs provided")
+    result = await db.execute(select(LlmModel).where(LlmModel.id.in_(data.ids)))
+    models = result.scalars().all()
+    if not models:
+        raise HTTPException(404, "No matching models found")
+    deleted = 0
+    already_removed = 0
+    had_default = False
+    for m in models:
+        if m.is_default:
+            had_default = True
+        if m.is_active:
+            m.is_active = False
+            deleted += 1
+        else:
+            already_removed += 1
+    await db.flush()
+    return {
+        "deleted": deleted,
+        "already_removed": already_removed,
+        "requested": len(data.ids),
+        "had_default": had_default,
+    }
 
 @router.post("/api/settings/llm-models/{model_id}/test")
 async def test_model(model_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):

@@ -19,7 +19,13 @@ const PROVIDER_DEFAULTS: Record<string, string> = {
   azure_openai: "https://{resource}.openai.azure.com/openai/deployments/{deployment}/chat/completions?api-version=2024-02-01",
   custom: "",
 };
-const PROVIDER_COLORS: Record<string, string> = { ollama: "bg-status-success/10 text-status-success", openai: "bg-kpmg-gray/10 text-kpmg-gray", anthropic: "bg-[#D97757]/10 text-[#D97757]", azure_openai: "bg-kpmg-light/10 text-kpmg-light", custom: "bg-status-warning/10 text-status-warning" };
+const PROVIDER_COLORS: Record<string, string> = {
+  ollama: "bg-status-success/10 text-status-success",
+  openai: "bg-kpmg-gray/10 text-kpmg-gray",
+  anthropic: "bg-[#D97757]/10 text-[#D97757]",
+  azure_openai: "bg-kpmg-light/10 text-kpmg-light",
+  custom: "bg-status-warning/10 text-status-warning",
+};
 
 export default function LlmModelsPage() {
   const queryClient = useQueryClient();
@@ -30,7 +36,32 @@ export default function LlmModelsPage() {
   const [form, setForm] = useState<FormData>(EMPTY);
   const [testing, setTesting] = useState<string | null>(null);
 
-  const { data: models, isLoading } = useQuery<LlmModel[]>({ queryKey: ["llm-models"], queryFn: () => api.get("/settings/llm-models") });
+  // ── Multi-select state ──
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const { data: models, isLoading } = useQuery<LlmModel[]>({
+    queryKey: ["llm-models"],
+    queryFn: () => api.get("/settings/llm-models"),
+  });
+
+  const allSelected = (models?.length ?? 0) > 0 && (models ?? []).every((m) => selectedIds.has(m.id));
+  const someSelected = selectedIds.size > 0;
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set((models ?? []).map((m) => m.id)));
+    }
+  };
 
   const saveMutation = useMutation({
     mutationFn: (data: FormData) => {
@@ -38,11 +69,66 @@ export default function LlmModelsPage() {
       if (!payload.api_key && editingId) delete (payload as any).api_key;
       return editingId ? api.put(`/settings/llm-models/${editingId}`, payload) : api.post("/settings/llm-models", payload);
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["llm-models"] }); setModalOpen(false); toast(editingId ? "Model updated" : "Model registered", "success"); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["llm-models"] });
+      setModalOpen(false);
+      toast(editingId ? "Model updated" : "Model registered", "success");
+    },
     onError: (e: Error) => toast(e.message, "error"),
   });
 
-  const deleteMutation = useMutation({ mutationFn: (id: string) => api.delete(`/settings/llm-models/${id}`), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["llm-models"] }); toast("Model removed", "info"); }, onError: (e: Error) => toast(e.message, "error") });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/settings/llm-models/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["llm-models"] });
+      toast("Model removed", "info");
+    },
+    onError: (e: Error) => toast(e.message, "error"),
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => api.post("/settings/llm-models/bulk-delete", { ids }),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["llm-models"] });
+      setSelectedIds(new Set());
+      let msg = `${data.deleted} ${data.deleted === 1 ? "model" : "models"} removed`;
+      if (data.already_removed > 0) msg += `, ${data.already_removed} already removed`;
+      if (data.had_default) msg += " (default model was included — please set a new default)";
+      toast(msg, data.had_default ? "info" : "success");
+    },
+    onError: (e: Error) => toast(e.message, "error"),
+  });
+
+  const handleSingleDelete = async (m: LlmModel, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const isDefault = m.is_default;
+    const ok = await confirm({
+      title: "Remove Model",
+      message: isDefault
+        ? `"${m.name}" is currently the default model. Removing it will disable AI assessment until a new default is set. Continue?`
+        : `Remove "${m.name}"? This action cannot be undone.`,
+      variant: "danger",
+      confirmLabel: "Remove",
+    });
+    if (ok) deleteMutation.mutate(m.id);
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    const selectedModels = (models ?? []).filter((m) => ids.includes(m.id));
+    const names = selectedModels.map((m) => m.name).join(", ");
+    const hasDefault = selectedModels.some((m) => m.is_default);
+
+    const ok = await confirm({
+      title: `Remove ${ids.length} ${ids.length === 1 ? "Model" : "Models"}`,
+      message: hasDefault
+        ? `Warning: you are removing the default model.\n\nModels to remove: ${names}\n\nAI assessment will be disabled until a new default is set.`
+        : `Remove the following ${ids.length === 1 ? "model" : "models"}?\n\n${names}`,
+      variant: "danger",
+      confirmLabel: `Remove ${ids.length}`,
+    });
+    if (ok) bulkDeleteMutation.mutate(ids);
+  };
 
   const testModel = async (id: string) => {
     setTesting(id);
@@ -66,72 +152,210 @@ export default function LlmModelsPage() {
       <Header title="LLM Models" />
       <div className="p-8 max-w-content mx-auto animate-fade-in-up">
         <div className="flex items-center justify-between mb-6">
-          <div><h1 className="text-2xl font-heading font-bold text-kpmg-navy">LLM Models</h1><p className="text-kpmg-gray text-sm font-body mt-1">Register and manage AI models used for assessment assistance.</p></div>
-          <button onClick={openCreate} className="kpmg-btn-primary flex items-center gap-2"><Plus className="w-4 h-4" /> Register Model</button>
+          <div>
+            <h1 className="text-2xl font-heading font-bold text-kpmg-navy">LLM Models</h1>
+            <p className="text-kpmg-gray text-sm font-body mt-1">Register and manage AI models used for assessment assistance.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Bulk delete button — only shown when models are selected */}
+            {someSelected && (
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteMutation.isPending}
+                className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-btn border border-status-error text-status-error hover:bg-status-error hover:text-white transition-colors font-medium"
+              >
+                <Trash2 className="w-4 h-4" />
+                {bulkDeleteMutation.isPending ? "Removing..." : `Remove Selected (${selectedIds.size})`}
+              </button>
+            )}
+            {/* Select All toggle — only visible when models exist */}
+            {(models?.length ?? 0) > 0 && (
+              <button
+                onClick={toggleSelectAll}
+                className="text-sm text-kpmg-gray hover:text-kpmg-navy font-body transition-colors px-3 py-2"
+              >
+                {allSelected ? "Deselect All" : "Select All"}
+              </button>
+            )}
+            <button onClick={openCreate} className="kpmg-btn-primary flex items-center gap-2">
+              <Plus className="w-4 h-4" /> Register Model
+            </button>
+          </div>
         </div>
 
-        {isLoading ? <div className="space-y-3">{[...Array(2)].map((_, i) => <div key={i} className="h-24 kpmg-skeleton" />)}</div> : !models?.length ? (
-          <div className="kpmg-card p-16 text-center"><Zap className="w-14 h-14 text-kpmg-border mx-auto mb-4" /><p className="text-kpmg-gray font-heading font-semibold text-lg">No AI models registered</p><p className="text-sm text-kpmg-placeholder mt-1">Register an LLM to enable AI-assisted assessment</p></div>
+        {/* Selection summary bar */}
+        {someSelected && (
+          <div className="flex items-center justify-between px-4 py-2.5 mb-4 bg-kpmg-blue/5 border border-kpmg-blue/20 rounded-card">
+            <span className="text-sm font-body text-kpmg-navy font-medium">
+              {selectedIds.size} {selectedIds.size === 1 ? "model" : "models"} selected
+            </span>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-kpmg-gray hover:text-kpmg-navy transition-colors"
+            >
+              Clear selection
+            </button>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="space-y-3">{[...Array(2)].map((_, i) => <div key={i} className="h-24 kpmg-skeleton" />)}</div>
+        ) : !models?.length ? (
+          <div className="kpmg-card p-16 text-center">
+            <Zap className="w-14 h-14 text-kpmg-border mx-auto mb-4" />
+            <p className="text-kpmg-gray font-heading font-semibold text-lg">No AI models registered</p>
+            <p className="text-sm text-kpmg-placeholder mt-1">Register an LLM to enable AI-assisted assessment</p>
+          </div>
         ) : (
           <div className="space-y-3 animate-stagger">
-            {models.map((m) => (
-              <div key={m.id} className="kpmg-card p-5 flex items-center gap-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => openEdit(m)}>
-                <div className="w-10 h-10 rounded-card bg-kpmg-purple/10 flex items-center justify-center"><Zap className="w-5 h-5 text-kpmg-purple" /></div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-heading font-bold text-kpmg-navy">{m.name}</h3>
-                    <span className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded ${PROVIDER_COLORS[m.provider] || ""}`}>{m.provider}</span>
-                    {m.is_default && <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-kpmg-blue/10 text-kpmg-blue flex items-center gap-0.5"><Star className="w-3 h-3" /> Default</span>}
+            {models.map((m) => {
+              const isSelected = selectedIds.has(m.id);
+              return (
+                <div
+                  key={m.id}
+                  className={`kpmg-card p-5 flex items-center gap-4 transition-shadow ${isSelected ? "ring-2 ring-kpmg-blue/30 bg-kpmg-blue/3" : "hover:shadow-md"}`}
+                >
+                  {/* Checkbox */}
+                  <div
+                    className="shrink-0"
+                    onClick={(e) => { e.stopPropagation(); toggleSelect(m.id); }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelect(m.id)}
+                      className="w-4 h-4 rounded border-kpmg-border text-kpmg-blue focus:ring-kpmg-blue cursor-pointer"
+                      onClick={(e) => e.stopPropagation()}
+                    />
                   </div>
-                  <p className="text-xs text-kpmg-placeholder font-mono mt-0.5">{m.model_id}</p>
-                  {m.last_tested_at && <p className="text-[10px] text-kpmg-placeholder mt-0.5">Last tested: {new Date(m.last_tested_at).toLocaleString()}</p>}
+
+                  {/* Icon */}
+                  <div
+                    className="w-10 h-10 rounded-card bg-kpmg-purple/10 flex items-center justify-center cursor-pointer shrink-0"
+                    onClick={() => openEdit(m)}
+                  >
+                    <Zap className="w-5 h-5 text-kpmg-purple" />
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openEdit(m)}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-heading font-bold text-kpmg-navy">{m.name}</h3>
+                      <span className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded ${PROVIDER_COLORS[m.provider] || ""}`}>{m.provider}</span>
+                      {m.is_default && (
+                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-kpmg-blue/10 text-kpmg-blue flex items-center gap-0.5">
+                          <Star className="w-3 h-3" /> Default
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-kpmg-placeholder font-mono mt-0.5">{m.model_id}</p>
+                    {m.description && <p className="text-xs text-kpmg-gray mt-0.5">{m.description}</p>}
+                    {m.last_tested_at && (
+                      <p className="text-[10px] text-kpmg-placeholder mt-0.5">
+                        Last tested: {new Date(m.last_tested_at).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={async (e) => { e.stopPropagation(); testModel(m.id); }}
+                      disabled={testing === m.id}
+                      className="p-2 text-kpmg-placeholder hover:text-status-success rounded-btn transition"
+                      title="Test connection"
+                    >
+                      {testing === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openEdit(m); }}
+                      className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition"
+                      title="Edit"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={(e) => handleSingleDelete(m, e)}
+                      disabled={deleteMutation.isPending}
+                      className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition"
+                      title="Remove"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={async (e) => { e.stopPropagation(); testModel(m.id); }} disabled={testing === m.id} className="p-2 text-kpmg-placeholder hover:text-status-success rounded-btn transition" title="Test">
-                    {testing === m.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                  </button>
-                  <button onClick={async (e) => { e.stopPropagation(); openEdit(m); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Edit"><Edit className="w-4 h-4" /></button>
-                  <button onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: "Remove", message: `Remove "${m.name}"?`, variant: "danger", confirmLabel: "Remove" })) deleteMutation.mutate(m.id); }} className="p-2 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Remove"><Trash2 className="w-4 h-4" /></button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
+      {/* ── Create / Edit Modal ── */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-card shadow-2xl w-full max-w-xl animate-fade-in-up" onClick={async (e) => e.stopPropagation()}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-xl animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border">
               <h3 className="text-lg font-heading font-bold text-kpmg-navy">{editingId ? "Edit Model" : "Register LLM Model"}</h3>
               <button onClick={() => setModalOpen(false)} className="p-1 text-kpmg-placeholder"><X className="w-5 h-5" /></button>
             </div>
             <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="kpmg-label">Model Name *</label><input type="text" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} className="kpmg-input" placeholder="Qwen 7B Local" /></div>
-                <div><label className="kpmg-label">Provider *</label>
+                <div>
+                  <label className="kpmg-label">Model Name *</label>
+                  <input type="text" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} className="kpmg-input" placeholder="Qwen 7B Local" />
+                </div>
+                <div>
+                  <label className="kpmg-label">Provider *</label>
                   <select value={form.provider} onChange={(e) => setForm(f => ({ ...f, provider: e.target.value, endpoint_url: PROVIDER_DEFAULTS[e.target.value] || f.endpoint_url }))} className="kpmg-input">
-                    <option value="ollama">Ollama (Local)</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="azure_openai">Azure OpenAI</option><option value="custom">Custom</option>
+                    <option value="ollama">Ollama (Local)</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="azure_openai">Azure OpenAI</option>
+                    <option value="custom">Custom</option>
                   </select>
                 </div>
               </div>
-              <div><label className="kpmg-label">Model ID *</label><input type="text" value={form.model_id} onChange={(e) => setForm(f => ({ ...f, model_id: e.target.value }))} className="kpmg-input font-mono" placeholder="qwen2.5:7b" /></div>
-              <div><label className="kpmg-label">Endpoint URL *</label><input type="text" value={form.endpoint_url} onChange={(e) => setForm(f => ({ ...f, endpoint_url: e.target.value }))} className="kpmg-input font-mono text-xs" /></div>
-              <div><label className="kpmg-label">API Key {form.provider === "ollama" ? "(not required)" : ""}</label><input type="password" value={form.api_key} onChange={(e) => setForm(f => ({ ...f, api_key: e.target.value }))} className="kpmg-input" placeholder={editingId ? "Leave blank to keep existing" : "sk-..."} /></div>
+              <div>
+                <label className="kpmg-label">Model ID *</label>
+                <input type="text" value={form.model_id} onChange={(e) => setForm(f => ({ ...f, model_id: e.target.value }))} className="kpmg-input font-mono" placeholder="qwen2.5:7b" />
+              </div>
+              <div>
+                <label className="kpmg-label">Endpoint URL *</label>
+                <input type="text" value={form.endpoint_url} onChange={(e) => setForm(f => ({ ...f, endpoint_url: e.target.value }))} className="kpmg-input font-mono text-xs" />
+              </div>
+              <div>
+                <label className="kpmg-label">API Key {form.provider === "ollama" ? "(not required)" : ""}</label>
+                <input type="password" value={form.api_key} onChange={(e) => setForm(f => ({ ...f, api_key: e.target.value }))} className="kpmg-input" placeholder={editingId ? "Leave blank to keep existing" : "sk-..."} />
+              </div>
               <div className="grid grid-cols-3 gap-4">
                 <div><label className="kpmg-label">Max Tokens</label><input type="number" value={form.max_tokens} onChange={(e) => setForm(f => ({ ...f, max_tokens: parseInt(e.target.value) }))} className="kpmg-input" /></div>
                 <div><label className="kpmg-label">Temperature</label><input type="number" step="0.05" min="0" max="1" value={form.temperature} onChange={(e) => setForm(f => ({ ...f, temperature: parseFloat(e.target.value) }))} className="kpmg-input" /></div>
                 <div><label className="kpmg-label">Context Window</label><input type="number" value={form.context_window} onChange={(e) => setForm(f => ({ ...f, context_window: parseInt(e.target.value) }))} className="kpmg-input" /></div>
               </div>
               <div className="flex items-center gap-6">
-                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={form.is_default} onChange={(e) => setForm(f => ({ ...f, is_default: e.target.checked }))} className="w-4 h-4 rounded" /><span className="text-sm font-body">Set as default model</span></label>
-                <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={form.supports_documents} onChange={(e) => setForm(f => ({ ...f, supports_documents: e.target.checked }))} className="w-4 h-4 rounded" /><span className="text-sm font-body">Supports document processing</span></label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.is_default} onChange={(e) => setForm(f => ({ ...f, is_default: e.target.checked }))} className="w-4 h-4 rounded" />
+                  <span className="text-sm font-body">Set as default model</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.supports_documents} onChange={(e) => setForm(f => ({ ...f, supports_documents: e.target.checked }))} className="w-4 h-4 rounded" />
+                  <span className="text-sm font-body">Supports document processing</span>
+                </label>
               </div>
-              <div><label className="kpmg-label">Description</label><textarea value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} rows={2} className="kpmg-input resize-none" /></div>
+              <div>
+                <label className="kpmg-label">Description</label>
+                <textarea value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} rows={2} className="kpmg-input resize-none" />
+              </div>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border">
               <button onClick={() => setModalOpen(false)} className="kpmg-btn-secondary text-sm px-5 py-2.5">Cancel</button>
-              <button onClick={() => saveMutation.mutate(form)} disabled={!form.name || !form.model_id || !form.endpoint_url || saveMutation.isPending} className="kpmg-btn-primary text-sm px-5 py-2.5 flex items-center gap-1.5"><Save className="w-4 h-4" />{saveMutation.isPending ? "Saving..." : "Save"}</button>
+              <button
+                onClick={() => saveMutation.mutate(form)}
+                disabled={!form.name || !form.model_id || !form.endpoint_url || saveMutation.isPending}
+                className="kpmg-btn-primary text-sm px-5 py-2.5 flex items-center gap-1.5"
+              >
+                <Save className="w-4 h-4" />{saveMutation.isPending ? "Saving..." : "Save"}
+              </button>
             </div>
           </div>
         </div>

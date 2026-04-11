@@ -51,6 +51,7 @@ export default function AssessmentCyclesPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: frameworks } = useQuery<Framework[]>({
     queryKey: ["frameworks-list"],
@@ -94,6 +95,16 @@ export default function AssessmentCyclesPage() {
     onError: (e: Error) => toast(e.message, "error"),
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => api.post("/assessment-cycle-configs/bulk-delete", { ids }),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["cycle-configs"] });
+      setSelectedIds(new Set());
+      toast(`Deleted ${data.deleted} cycle${data.deleted !== 1 ? "s" : ""}`, "info");
+    },
+    onError: (e: Error) => toast(e.message, "error"),
+  });
+
   const openCreate = () => { setEditingId(null); setForm(EMPTY_FORM); setError(""); setModalOpen(true); };
   const openEdit = (c: CycleConfig) => {
     setEditingId(c.id);
@@ -103,6 +114,36 @@ export default function AssessmentCyclesPage() {
     });
     setError("");
     setModalOpen(true);
+  };
+
+  // Selection helpers
+  const allCycles = cycles || [];
+  const toggleSelect = (id: string) => setSelectedIds((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const toggleSelectAll = () => {
+    if (selectedIds.size === allCycles.length && allCycles.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allCycles.map((c) => c.id)));
+    }
+  };
+  const someSelected = selectedIds.size > 0;
+  const allSelected = allCycles.length > 0 && selectedIds.size === allCycles.length;
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    const selectedCycles = allCycles.filter((c) => ids.includes(c.id));
+    const names = selectedCycles.map((c) => c.cycle_name).join(", ");
+    const ok = await confirm({
+      title: `Delete ${ids.length} Cycle${ids.length !== 1 ? "s" : ""}`,
+      message: `Permanently delete: ${names}? This cannot be undone. Cycles with linked assessments cannot be deleted.`,
+      variant: "danger",
+      confirmLabel: "Delete",
+    });
+    if (ok) bulkDeleteMutation.mutate(ids);
   };
 
   // Check if selecting Active will conflict
@@ -118,7 +159,7 @@ export default function AssessmentCyclesPage() {
 
   // Group by framework for visual clarity
   const grouped: Record<string, CycleConfig[]> = {};
-  (cycles || []).forEach((c) => {
+  allCycles.forEach((c) => {
     const key = c.framework_abbreviation || "Other";
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(c);
@@ -139,6 +180,16 @@ export default function AssessmentCyclesPage() {
             {frameworks?.map((fw) => <option key={fw.id} value={fw.id}>{fw.abbreviation} — {fw.name}</option>)}
           </select>
           <div className="flex items-center gap-2">
+            {someSelected && (
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteMutation.isPending}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-status-error border border-status-error rounded-btn hover:bg-[#FEF2F2] transition"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete ({selectedIds.size})
+              </button>
+            )}
             <button onClick={async () => { const r = await fetch(`${API_BASE}/bulk-cycles/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "assessment_cycles.xlsx"; a.click(); URL.revokeObjectURL(u); }} className="kpmg-btn-secondary flex items-center gap-2 text-sm"><Download className="w-4 h-4" /> Export</button>
             <label className="kpmg-btn-secondary flex items-center gap-2 text-sm cursor-pointer"><Upload className="w-4 h-4" /> Import<input type="file" accept=".xlsx" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; setImportFile(file); const fd = new FormData(); fd.append("file", file); const r = await fetch(`${API_BASE}/bulk-cycles/import-excel?preview=true`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd }); const p = await r.json(); if (r.ok) setImportPreview(p); e.target.value = ""; }} /></label>
             <button onClick={openCreate} className="kpmg-btn-primary flex items-center gap-2">
@@ -147,15 +198,35 @@ export default function AssessmentCyclesPage() {
           </div>
         </div>
 
+        {/* Selection summary */}
+        {someSelected && (
+          <div className="mb-4 px-4 py-2 bg-kpmg-hover-bg border border-kpmg-border rounded-btn text-sm text-kpmg-gray flex items-center gap-2">
+            <span className="font-semibold text-kpmg-navy">{selectedIds.size}</span> cycle{selectedIds.size !== 1 ? "s" : ""} selected
+            <button onClick={() => setSelectedIds(new Set())} className="ml-2 text-xs text-kpmg-light hover:text-kpmg-navy underline">Clear selection</button>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-20 kpmg-skeleton" />)}</div>
-        ) : !cycles?.length ? (
+        ) : !allCycles.length ? (
           <div className="kpmg-card p-16 text-center">
             <Clock className="w-14 h-14 text-kpmg-border mx-auto mb-4" />
             <p className="text-kpmg-gray font-heading font-semibold text-lg">No assessment cycles found</p>
           </div>
         ) : (
           <div className="space-y-6">
+            {/* Select-all header */}
+            <div className="flex items-center gap-2 px-1">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                onChange={toggleSelectAll}
+                className="w-4 h-4 accent-kpmg-navy cursor-pointer"
+                title={allSelected ? "Deselect all" : "Select all"}
+              />
+              <span className="text-xs text-kpmg-placeholder font-body">Select all ({allCycles.length})</span>
+            </div>
             {Object.entries(grouped).map(([fwAbbr, fwCycles]) => (
               <div key={fwAbbr}>
                 <p className="text-[11px] font-heading font-bold uppercase tracking-widest text-kpmg-gray mb-2 px-1">
@@ -164,7 +235,19 @@ export default function AssessmentCyclesPage() {
                 </p>
                 <div className="space-y-2">
                   {fwCycles.map((c) => (
-                    <div key={c.id} className="kpmg-card p-4 flex items-center gap-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => openEdit(c)}>
+                    <div
+                      key={c.id}
+                      className={`kpmg-card p-4 flex items-center gap-4 cursor-pointer hover:shadow-md transition-shadow ${selectedIds.has(c.id) ? "ring-2 ring-kpmg-light" : ""}`}
+                      onClick={() => openEdit(c)}
+                    >
+                      {/* Checkbox */}
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(c.id)}
+                        onChange={() => toggleSelect(c.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 accent-kpmg-navy cursor-pointer shrink-0"
+                      />
                       <div className="w-10 h-10 rounded-card flex items-center justify-center shrink-0" style={{ backgroundColor: (FW_COLORS[c.framework_abbreviation || ""] || "#6D6E71") + "15" }}>
                         <span className="text-xs font-mono font-bold" style={{ color: FW_COLORS[c.framework_abbreviation || ""] || "#6D6E71" }}>
                           {(c.framework_abbreviation || "?").substring(0, 3)}

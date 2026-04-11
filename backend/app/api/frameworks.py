@@ -202,3 +202,32 @@ async def archive_framework(
         raise HTTPException(status_code=404, detail="Framework not found")
     fw.status = "Archived"
     await db.flush()
+
+
+class BulkArchiveFrameworksRequest(BaseModel):
+    ids: list[uuid.UUID]
+
+
+@router.post("/bulk-archive")
+async def bulk_archive_frameworks(
+    data: BulkArchiveFrameworksRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """Archive multiple compliance frameworks at once."""
+    if not data.ids:
+        raise HTTPException(status_code=400, detail="No framework IDs provided")
+    result = await db.execute(select(ComplianceFramework).where(ComplianceFramework.id.in_(data.ids)))
+    frameworks = result.scalars().all()
+    if not frameworks:
+        raise HTTPException(status_code=404, detail="No matching frameworks found")
+    archived = 0
+    already_archived = 0
+    for fw in frameworks:
+        if fw.status != "Archived":
+            fw.status = "Archived"
+            archived += 1
+        else:
+            already_archived += 1
+    await db.flush()
+    return {"archived": archived, "already_archived": already_archived, "requested": len(data.ids)}

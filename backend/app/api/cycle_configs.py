@@ -243,3 +243,46 @@ async def delete_cycle_config(
         raise HTTPException(status_code=404, detail="Cycle not found")
     await db.delete(config)
     await db.flush()
+
+
+class BulkDeleteCyclesRequest(BaseModel):
+    ids: list[uuid.UUID]
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_cycles(
+    data: BulkDeleteCyclesRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """Permanently delete multiple assessment cycles. Blocked if any have linked assessment instances."""
+    from app.models.assessment_engine import AssessmentInstance
+    from sqlalchemy import func
+
+    if not data.ids:
+        raise HTTPException(status_code=400, detail="No cycle IDs provided")
+
+    result = await db.execute(select(AssessmentCycleConfig).where(AssessmentCycleConfig.id.in_(data.ids)))
+    cycles = result.scalars().all()
+    if not cycles:
+        raise HTTPException(status_code=404, detail="No matching cycles found")
+
+    # Check each cycle for linked assessment instances
+    blocked = []
+    for c in cycles:
+        inst_count = (await db.execute(
+            select(func.count()).select_from(AssessmentInstance).where(AssessmentInstance.cycle_id == c.id)
+        )).scalar() or 0
+        if inst_count > 0:
+            blocked.append(f"{c.cycle_name} ({inst_count} instance{'s' if inst_count > 1 else ''})")
+
+    if blocked:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete: the following cycles have linked assessment instances and cannot be removed: {', '.join(blocked)}"
+        )
+
+    for c in cycles:
+        await db.delete(c)
+    await db.flush()
+    return {"deleted": len(cycles), "requested": len(data.ids)}
