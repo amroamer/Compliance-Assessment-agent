@@ -80,8 +80,8 @@ export default function UsersPage() {
   const { data: entities } = useQuery<any[]>({ queryKey: ["assessed-entities"], queryFn: () => api.get("/assessed-entities") });
 
   // ── Selection helpers ──
-  // Exclude self and already-inactive users from selectable rows
-  const selectableUsers = (users || []).filter((u) => u.is_active && u.id !== me?.id);
+  // Exclude only self — inactive users can still be selected (backend handles gracefully)
+  const selectableUsers = (users || []).filter((u) => u.id !== me?.id);
   const allSelected = selectableUsers.length > 0 && selectableUsers.every((u) => selectedIds.has(u.id));
   const someSelected = selectedIds.size > 0;
 
@@ -257,9 +257,10 @@ export default function UsersPage() {
                     <input
                       type="checkbox"
                       checked={allSelected}
+                      ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
                       onChange={toggleSelectAll}
                       className="w-4 h-4 rounded border-white/40 bg-transparent text-white focus:ring-white/50 cursor-pointer"
-                      title={allSelected ? "Deselect all" : "Select all active (except yourself)"}
+                      title={allSelected ? "Deselect all" : "Select all (except yourself)"}
                     />
                   </th>
                   <th className="text-left px-5 py-3.5 text-[13px] font-semibold text-white uppercase tracking-wide">Name</th>
@@ -274,15 +275,14 @@ export default function UsersPage() {
                 {users.map((u, idx) => {
                   const isSelf = u.id === me?.id;
                   const isSelected = selectedIds.has(u.id);
-                  const isSelectable = u.is_active && !isSelf;
                   return (
                     <tr
                       key={u.id}
                       className={`border-b border-kpmg-border hover:bg-kpmg-hover-bg transition-colors ${isSelected ? "bg-kpmg-blue/5" : idx % 2 === 1 ? "bg-kpmg-light-gray" : "bg-white"}`}
                     >
-                      {/* Checkbox — disabled for self or already-inactive */}
+                      {/* Checkbox — disabled only for self */}
                       <td className="px-4 py-4 w-10">
-                        {isSelectable ? (
+                        {!isSelf ? (
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -292,7 +292,7 @@ export default function UsersPage() {
                         ) : (
                           <span
                             className="block w-4 h-4"
-                            title={isSelf ? "You cannot deactivate your own account" : "User is already inactive"}
+                            title="You cannot deactivate your own account"
                           />
                         )}
                       </td>

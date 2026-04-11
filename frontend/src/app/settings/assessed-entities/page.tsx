@@ -64,8 +64,7 @@ export default function AssessedEntitiesPage() {
 
   const filtered = (entities || []).filter((e) => !search || e.name.toLowerCase().includes(search.toLowerCase()) || e.abbreviation?.toLowerCase().includes(search.toLowerCase()));
 
-  const activeFiltered = filtered.filter((e) => e.status === "Active");
-  const allActiveSelected = activeFiltered.length > 0 && activeFiltered.every((e) => selectedIds.has(e.id));
+  const allSelected = filtered.length > 0 && filtered.every((e) => selectedIds.has(e.id));
   const someSelected = selectedIds.size > 0;
 
   const toggleSelect = (id: string) => {
@@ -77,10 +76,10 @@ export default function AssessedEntitiesPage() {
   };
 
   const toggleSelectAll = () => {
-    if (allActiveSelected) {
+    if (allSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(activeFiltered.map((e) => e.id)));
+      setSelectedIds(new Set(filtered.map((e) => e.id)));
     }
   };
 
@@ -252,10 +251,11 @@ export default function AssessedEntitiesPage() {
                 <th className="px-4 py-3.5 w-10">
                   <input
                     type="checkbox"
-                    checked={allActiveSelected}
+                    checked={allSelected}
+                    ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
                     onChange={toggleSelectAll}
                     className="w-4 h-4 rounded border-white/40 bg-transparent text-white focus:ring-white/50 cursor-pointer"
-                    title={allActiveSelected ? "Deselect all" : "Select all active"}
+                    title={allSelected ? "Deselect all" : "Select all"}
                   />
                 </th>
                 <th className="text-left px-5 py-3.5 text-[13px] font-semibold text-white uppercase tracking-wide">Entity</th>
@@ -275,14 +275,12 @@ export default function AssessedEntitiesPage() {
                       onClick={() => router.push(`/entities/${e.id}/overview`)}
                     >
                       <td className="px-4 py-4 w-10" onClick={(ev) => ev.stopPropagation()}>
-                        {e.status === "Active" && (
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelect(e.id)}
-                            className="w-4 h-4 rounded border-kpmg-border text-kpmg-blue focus:ring-kpmg-blue cursor-pointer"
-                          />
-                        )}
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(e.id)}
+                          className="w-4 h-4 rounded border-kpmg-border text-kpmg-blue focus:ring-kpmg-blue cursor-pointer"
+                        />
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
