@@ -36,6 +36,7 @@ class NodeCreate(BaseModel):
     name: str; name_ar: str | None = None; description: str | None = None
     description_ar: str | None = None; guidance: str | None = None; guidance_ar: str | None = None
     is_assessable: bool = False; weight: float | None = None; max_score: float | None = None
+    assessment_type: str | None = None  # maturity, compliance
     maturity_level: int | None = None; evidence_type: str | None = None
     acceptance_criteria: str | None = None; acceptance_criteria_en: str | None = None
     spec_references: str | None = None; priority: str | None = None
@@ -46,6 +47,7 @@ class NodeUpdate(BaseModel):
     description: str | None = None; description_ar: str | None = None
     guidance: str | None = None; guidance_ar: str | None = None
     is_assessable: bool | None = None; weight: float | None = None; max_score: float | None = None
+    assessment_type: str | None = None
     maturity_level: int | None = None; evidence_type: str | None = None
     acceptance_criteria: str | None = None; acceptance_criteria_en: str | None = None
     spec_references: str | None = None; priority: str | None = None
@@ -60,6 +62,7 @@ class NodeResponse(BaseModel):
     description_ar: str | None = None; guidance: str | None = None; guidance_ar: str | None = None
     sort_order: int; path: str; depth: int; is_active: bool; is_assessable: bool
     weight: float | None = None; max_score: float | None = None; children_count: int = 0
+    assessment_type: str | None = None
     maturity_level: int | None = None; evidence_type: str | None = None
     acceptance_criteria: str | None = None; acceptance_criteria_en: str | None = None
     spec_references: str | None = None; priority: str | None = None
@@ -76,7 +79,7 @@ def _node_response(n: FrameworkNode, children_count: int = 0) -> NodeResponse:
         is_active=n.is_active, is_assessable=n.is_assessable,
         weight=float(n.weight) if n.weight else None,
         max_score=float(n.max_score) if n.max_score else None,
-        maturity_level=n.maturity_level, evidence_type=n.evidence_type,
+        assessment_type=n.assessment_type, maturity_level=n.maturity_level, evidence_type=n.evidence_type,
         acceptance_criteria=n.acceptance_criteria, acceptance_criteria_en=n.acceptance_criteria_en,
         spec_references=n.spec_references, priority=n.priority,
         children_count=children_count,

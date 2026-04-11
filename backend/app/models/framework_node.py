@@ -51,6 +51,7 @@ class FrameworkNode(Base):
     is_assessable: Mapped[bool] = mapped_column(Boolean, default=False)
     weight: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     max_score: Mapped[Decimal | None] = mapped_column(Numeric(7, 2), nullable=True)
+    assessment_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # maturity, compliance
     maturity_level: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-5
     evidence_type: Mapped[str | None] = mapped_column(String(500), nullable=True)
     acceptance_criteria: Mapped[str | None] = mapped_column(Text, nullable=True)  # Arabic

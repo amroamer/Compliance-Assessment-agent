@@ -28,7 +28,8 @@ interface NodeForm {
   parent_id: string | null; node_type: string; reference_code: string; name: string; name_ar: string;
   description: string; description_ar: string; guidance: string; guidance_ar: string;
   is_assessable: boolean; weight: string; max_score: string;
-  maturity_level: string; evidence_type: string; acceptance_criteria: string; acceptance_criteria_en: string;
+  assessment_type: string; maturity_level: string; evidence_type: string;
+  acceptance_criteria: string; acceptance_criteria_en: string;
   spec_references: string; priority: string;
 }
 
@@ -36,7 +37,8 @@ const EMPTY_FORM: NodeForm = {
   parent_id: null, node_type: "", reference_code: "", name: "", name_ar: "",
   description: "", description_ar: "", guidance: "", guidance_ar: "",
   is_assessable: false, weight: "", max_score: "",
-  maturity_level: "", evidence_type: "", acceptance_criteria: "", acceptance_criteria_en: "",
+  assessment_type: "", maturity_level: "", evidence_type: "",
+  acceptance_criteria: "", acceptance_criteria_en: "",
   spec_references: "", priority: "",
 };
 
@@ -163,7 +165,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
       description_ar: node.description_ar || "", guidance: node.guidance || "",
       guidance_ar: node.guidance_ar || "", is_assessable: node.is_assessable,
       weight: node.weight?.toString() || "", max_score: node.max_score?.toString() || "",
-      maturity_level: node.maturity_level?.toString() || "", evidence_type: node.evidence_type || "",
+      assessment_type: node.assessment_type || "", maturity_level: node.maturity_level?.toString() || "", evidence_type: node.evidence_type || "",
       acceptance_criteria: node.acceptance_criteria || "", acceptance_criteria_en: node.acceptance_criteria_en || "",
       spec_references: node.spec_references || "", priority: node.priority || "",
     });
@@ -364,14 +366,6 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
                     <label className="kpmg-label">Name (English) <span className="text-status-error">*</span></label>
                     <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="kpmg-input" placeholder="Data Governance" />
                   </div>
-                  <div>
-                    <label className="kpmg-label">Description (English)</label>
-                    <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} className="kpmg-input resize-none" placeholder="Description..." />
-                  </div>
-                  <div>
-                    <label className="kpmg-label">Guidance (English)</label>
-                    <textarea value={form.guidance} onChange={(e) => setForm((f) => ({ ...f, guidance: e.target.value }))} rows={3} className="kpmg-input resize-none" placeholder="Assessment guidance for consultants..." />
-                  </div>
                 </div>
 
                 {/* Right column */}
@@ -383,14 +377,6 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
                   <div>
                     <label className="kpmg-label">Name (Arabic) <span className="text-status-error">*</span></label>
                     <input type="text" dir="rtl" value={form.name_ar} onChange={(e) => setForm((f) => ({ ...f, name_ar: e.target.value }))} className="kpmg-input font-arabic text-right" placeholder="حوكمة البيانات" />
-                  </div>
-                  <div>
-                    <label className="kpmg-label">Description (Arabic)</label>
-                    <textarea dir="rtl" value={form.description_ar} onChange={(e) => setForm((f) => ({ ...f, description_ar: e.target.value }))} rows={3} className="kpmg-input resize-none font-arabic text-right" />
-                  </div>
-                  <div>
-                    <label className="kpmg-label">Guidance (Arabic)</label>
-                    <textarea dir="rtl" value={form.guidance_ar} onChange={(e) => setForm((f) => ({ ...f, guidance_ar: e.target.value }))} rows={3} className="kpmg-input resize-none font-arabic text-right" />
                   </div>
                 </div>
               </div>
@@ -406,7 +392,15 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
                 </label>
                 {form.is_assessable && (
                   <div className="space-y-4 mt-3">
-                    <div className="grid grid-cols-4 gap-4">
+                    <div className="grid grid-cols-5 gap-4">
+                      <div>
+                        <label className="kpmg-label">Assessment Type</label>
+                        <select value={form.assessment_type} onChange={(e) => setForm((f) => ({ ...f, assessment_type: e.target.value }))} className="kpmg-input">
+                          <option value="">—</option>
+                          <option value="maturity">نضج (Maturity)</option>
+                          <option value="compliance">امتثال (Compliance)</option>
+                        </select>
+                      </div>
                       <div>
                         <label className="kpmg-label">Weight</label>
                         <input type="number" step="0.01" value={form.weight} onChange={(e) => setForm((f) => ({ ...f, weight: e.target.value }))} className="kpmg-input" placeholder="1.0" />
