@@ -203,6 +203,11 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
     return nt?.color || "#6D6E71";
   };
 
+  const getTypeLabel = (typeName: string) => {
+    const nt = (nodeTypes || []).find((t) => t.name === typeName);
+    return nt?.label || typeName;
+  };
+
   // Recursive tree renderer
   const renderNode = (node: FrameworkNode & { _children: FrameworkNode[] }, level: number) => {
     const isExpanded = expanded.has(node.id);
@@ -236,8 +241,8 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
             </span>
           )}
 
-          {/* Type label */}
-          <span className="text-[11px] text-kpmg-placeholder font-body shrink-0">{node.node_type}</span>
+          {/* Type label — uses the configured level name from KPI cards */}
+          <span className="text-[11px] text-kpmg-placeholder font-body shrink-0">{getTypeLabel(node.node_type)}</span>
 
           {/* Name */}
           <span className="text-sm font-heading font-semibold text-kpmg-navy truncate flex-1">{node.name}</span>
