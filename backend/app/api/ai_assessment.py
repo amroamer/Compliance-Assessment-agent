@@ -80,15 +80,24 @@ async def export_models_excel(db: AsyncSession = Depends(get_db), current_user: 
 async def import_models_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     from io import BytesIO
     from openpyxl import load_workbook
-    content = await file.read()
-    wb = load_workbook(BytesIO(content))
-    ws = wb.active
-    headers = [cell.value for cell in ws[1]]
-    rows = []
-    for row in ws.iter_rows(min_row=2, values_only=True):
-        r = dict(zip(headers, row))
-        if r.get("name"):
-            rows.append(r)
+    try:
+        content = await file.read()
+        if not content:
+            raise HTTPException(400, "Empty file uploaded")
+        wb = load_workbook(BytesIO(content))
+        ws = wb.active
+        header_row = [cell.value for cell in ws[1]]
+        if not header_row or "name" not in header_row:
+            raise HTTPException(400, "Invalid file format: missing 'name' column header")
+        rows = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            r = dict(zip(header_row, row))
+            if r.get("name"):
+                rows.append(r)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"Failed to parse Excel file: {str(e)}")
     existing_names = set((await db.execute(select(LlmModel.name).where(LlmModel.is_active == True))).scalars().all())
     new_rows = [r for r in rows if r["name"] not in existing_names]
     dup_rows = [r for r in rows if r["name"] in existing_names]
@@ -108,7 +117,7 @@ async def import_models_excel(file: UploadFile = File(...), preview: bool = Fals
             provider = "custom"
         m = LlmModel(
             name=r["name"], provider=provider,
-            model_id=r.get("model_id", ""), endpoint_url=r.get("endpoint_url", ""),
+            model_id=r.get("model_id") or "", endpoint_url=r.get("endpoint_url") or "",
             max_tokens=int(r.get("max_tokens") or 4096),
             temperature=Decimal(str(r.get("temperature") or 0.1)),
             context_window=int(r.get("context_window") or 8192),
