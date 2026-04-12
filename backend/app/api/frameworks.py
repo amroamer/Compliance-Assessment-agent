@@ -2,7 +2,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -231,3 +231,68 @@ async def bulk_archive_frameworks(
             already_archived += 1
     await db.flush()
     return {"archived": archived, "already_archived": already_archived, "requested": len(data.ids)}
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_frameworks(
+    data: BulkArchiveFrameworksRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """Permanently delete frameworks and ALL related data (nodes, scales, templates, rules, instances, etc.)."""
+    if not data.ids:
+        raise HTTPException(status_code=400, detail="No framework IDs provided")
+    result = await db.execute(select(ComplianceFramework).where(ComplianceFramework.id.in_(data.ids)))
+    frameworks = result.scalars().all()
+    if not frameworks:
+        raise HTTPException(status_code=404, detail="No matching frameworks found")
+    fw_ids = [fw.id for fw in frameworks]
+
+    from app.models.framework_node import FrameworkNode, NodeType
+    from app.models.framework_document import FrameworkDocument
+    from app.models.assessment_cycle_config import AssessmentCycleConfig
+    from app.models.assessment_engine import (
+        AssessmentScale, AssessmentScaleLevel, AssessmentFormTemplate, AssessmentFormField,
+        AggregationRule, AssessmentInstance, AssessmentResponse, AssessmentResponseHistory,
+        AssessmentNodeScore, AssessmentEvidence, assessment_template_scales,
+    )
+
+    # 1. Delete assessment instance cascade (instances → responses → history, evidence, scores)
+    inst_ids_q = await db.execute(select(AssessmentInstance.id).where(AssessmentInstance.framework_id.in_(fw_ids)))
+    inst_ids = [r[0] for r in inst_ids_q.all()]
+    if inst_ids:
+        await db.execute(delete(AssessmentNodeScore).where(AssessmentNodeScore.instance_id.in_(inst_ids)))
+        resp_ids_q = await db.execute(select(AssessmentResponse.id).where(AssessmentResponse.instance_id.in_(inst_ids)))
+        resp_ids = [r[0] for r in resp_ids_q.all()]
+        if resp_ids:
+            await db.execute(delete(AssessmentResponseHistory).where(AssessmentResponseHistory.response_id.in_(resp_ids)))
+            await db.execute(delete(AssessmentEvidence).where(AssessmentEvidence.response_id.in_(resp_ids)))
+        await db.execute(delete(AssessmentResponse).where(AssessmentResponse.instance_id.in_(inst_ids)))
+        await db.execute(delete(AssessmentInstance).where(AssessmentInstance.id.in_(inst_ids)))
+
+    # 2. Delete form templates (fields, junction table)
+    tmpl_ids_q = await db.execute(select(AssessmentFormTemplate.id).where(AssessmentFormTemplate.framework_id.in_(fw_ids)))
+    tmpl_ids = [r[0] for r in tmpl_ids_q.all()]
+    if tmpl_ids:
+        await db.execute(delete(AssessmentFormField).where(AssessmentFormField.template_id.in_(tmpl_ids)))
+        await db.execute(assessment_template_scales.delete().where(assessment_template_scales.c.template_id.in_(tmpl_ids)))
+        await db.execute(delete(AssessmentFormTemplate).where(AssessmentFormTemplate.id.in_(tmpl_ids)))
+
+    # 3. Delete scales (levels)
+    scale_ids_q = await db.execute(select(AssessmentScale.id).where(AssessmentScale.framework_id.in_(fw_ids)))
+    scale_ids = [r[0] for r in scale_ids_q.all()]
+    if scale_ids:
+        await db.execute(delete(AssessmentScaleLevel).where(AssessmentScaleLevel.scale_id.in_(scale_ids)))
+        await db.execute(delete(AssessmentScale).where(AssessmentScale.id.in_(scale_ids)))
+
+    # 4. Delete aggregation rules, cycle configs, nodes, node types, documents
+    await db.execute(delete(AggregationRule).where(AggregationRule.framework_id.in_(fw_ids)))
+    await db.execute(delete(AssessmentCycleConfig).where(AssessmentCycleConfig.framework_id.in_(fw_ids)))
+    await db.execute(delete(FrameworkNode).where(FrameworkNode.framework_id.in_(fw_ids)))
+    await db.execute(delete(NodeType).where(NodeType.framework_id.in_(fw_ids)))
+    await db.execute(delete(FrameworkDocument).where(FrameworkDocument.framework_id.in_(fw_ids)))
+
+    # 5. Delete frameworks
+    await db.execute(delete(ComplianceFramework).where(ComplianceFramework.id.in_(fw_ids)))
+    await db.flush()
+    return {"deleted": len(frameworks), "requested": len(data.ids)}

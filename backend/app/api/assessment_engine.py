@@ -423,6 +423,37 @@ async def bulk_deactivate_assessed_entities(data: BulkDeactivateRequest, db: Asy
     await db.flush()
     return {"deactivated": len(entities), "requested": len(data.ids)}
 
+@router.post("/api/assessed-entities/bulk-delete")
+async def bulk_delete_assessed_entities(data: BulkDeactivateRequest, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    if not data.ids:
+        raise HTTPException(400, "No entity IDs provided")
+    result = await db.execute(select(AssessedEntity).where(AssessedEntity.id.in_(data.ids)))
+    entities = result.scalars().all()
+    if not entities:
+        raise HTTPException(404, "No matching entities found")
+    found_ids = [e.id for e in entities]
+    # Delete assessment instances and all cascade children (responses, scores, evidence)
+    inst_ids_q = await db.execute(select(AssessmentInstance.id).where(AssessmentInstance.assessed_entity_id.in_(found_ids)))
+    inst_ids = [r[0] for r in inst_ids_q.all()]
+    if inst_ids:
+        await db.execute(delete(AssessmentNodeScore).where(AssessmentNodeScore.instance_id.in_(inst_ids)))
+        resp_ids_q = await db.execute(select(AssessmentResponse.id).where(AssessmentResponse.instance_id.in_(inst_ids)))
+        resp_ids = [r[0] for r in resp_ids_q.all()]
+        if resp_ids:
+            await db.execute(delete(AssessmentResponseHistory).where(AssessmentResponseHistory.response_id.in_(resp_ids)))
+            await db.execute(delete(AssessmentEvidence).where(AssessmentEvidence.response_id.in_(resp_ids)))
+        await db.execute(delete(AssessmentResponse).where(AssessmentResponse.instance_id.in_(inst_ids)))
+        await db.execute(delete(AssessmentInstance).where(AssessmentInstance.id.in_(inst_ids)))
+    # Delete AI products (CASCADE from entity, but be explicit)
+    await db.execute(delete(AiProduct).where(AiProduct.assessed_entity_id.in_(found_ids)))
+    # Delete junction table entries
+    from app.models.assessment_engine import entity_regulatory_entities as ere
+    await db.execute(ere.delete().where(ere.c.entity_id.in_(found_ids)))
+    # Delete entities
+    await db.execute(delete(AssessedEntity).where(AssessedEntity.id.in_(found_ids)))
+    await db.flush()
+    return {"deleted": len(entities), "requested": len(data.ids)}
+
 @router.post("/api/assessed-entities/{eid}/logo")
 async def upload_entity_logo(eid: uuid.UUID, file: UploadFile = File(...), db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin", "kpmg_user"))):
     r = await db.execute(select(AssessedEntity).where(AssessedEntity.id == eid))

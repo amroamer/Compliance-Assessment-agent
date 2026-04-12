@@ -118,29 +118,25 @@ export default function AssessedEntitiesPage() {
     onError: (e: Error) => toast(e.message, "error"),
   });
 
-  const bulkDeactivateMutation = useMutation({
-    mutationFn: (ids: string[]) => api.post("/assessed-entities/bulk-deactivate", { ids }),
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => api.post("/assessed-entities/bulk-delete", { ids }),
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["assessed-entities"] });
       setSelectedIds(new Set());
-      toast(`${data.deactivated} ${data.deactivated === 1 ? "entity" : "entities"} deactivated`, "success");
+      toast(`${data.deleted} ${data.deleted === 1 ? "entity" : "entities"} permanently deleted`, "success");
     },
     onError: (e: Error) => toast(e.message, "error"),
   });
 
   const handleBulkDelete = async () => {
     const ids = Array.from(selectedIds);
-    const names = (entities || [])
-      .filter((e) => ids.includes(e.id))
-      .map((e) => e.name)
-      .join(", ");
     const ok = await confirm({
-      title: `Deactivate ${ids.length} ${ids.length === 1 ? "Entity" : "Entities"}`,
-      message: `Are you sure you want to deactivate the following ${ids.length === 1 ? "entity" : "entities"}?\n\n${names}`,
-      variant: "warning",
-      confirmLabel: `Deactivate ${ids.length}`,
+      title: `Delete ${ids.length} ${ids.length === 1 ? "Entity" : "Entities"}`,
+      message: `Permanently delete ${ids.length} ${ids.length === 1 ? "entity" : "entities"} and all related assessments, products, responses, and evidence? This action cannot be undone.`,
+      variant: "danger",
+      confirmLabel: `Delete ${ids.length}`,
     });
-    if (ok) bulkDeactivateMutation.mutate(ids);
+    if (ok) bulkDeleteMutation.mutate(ids);
   };
 
   const openCreate = () => {
@@ -201,11 +197,11 @@ export default function AssessedEntitiesPage() {
             {someSelected && (
               <button
                 onClick={handleBulkDelete}
-                disabled={bulkDeactivateMutation.isPending}
+                disabled={bulkDeleteMutation.isPending}
                 className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-btn border border-status-error text-status-error hover:bg-status-error hover:text-white transition-colors font-medium"
               >
                 <Trash2 className="w-4 h-4" />
-                {bulkDeactivateMutation.isPending ? "Deactivating..." : `Deactivate Selected (${selectedIds.size})`}
+                {bulkDeleteMutation.isPending ? "Deleting..." : `Delete Selected (${selectedIds.size})`}
               </button>
             )}
             <button onClick={async () => {

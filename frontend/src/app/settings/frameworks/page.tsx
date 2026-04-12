@@ -7,7 +7,7 @@ import { api, API_BASE } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import {
-  BookOpen, Plus, Edit, ChevronRight, X, Save, Download, Upload, Archive,
+  BookOpen, Plus, Edit, ChevronRight, X, Save, Download, Upload, Archive, Trash2,
 } from "lucide-react";
 import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
 import { useConfirm } from "@/components/ui/ConfirmModal";
@@ -90,6 +90,16 @@ export default function FrameworksPage() {
     onError: (e: Error) => toast(e.message, "error"),
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => api.post("/frameworks/bulk-delete", { ids }),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["frameworks"] });
+      setSelectedIds(new Set());
+      toast(`${data.deleted} framework${data.deleted !== 1 ? "s" : ""} permanently deleted`, "success");
+    },
+    onError: (e: Error) => toast(e.message, "error"),
+  });
+
   const openCreate = () => { setEditingId(null); setForm(EMPTY_FORM); setError(""); setModalOpen(true); };
   const openEdit = (fw: Framework) => {
     setEditingId(fw.id);
@@ -111,14 +121,15 @@ export default function FrameworksPage() {
     return next;
   });
   const toggleSelectAll = () => {
-    if (selectedIds.size === activeFrameworks.length && activeFrameworks.length > 0) {
+    if (selectedIds.size === allFrameworks.length && allFrameworks.length > 0) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(activeFrameworks.map((fw) => fw.id)));
+      setSelectedIds(new Set(allFrameworks.map((fw) => fw.id)));
     }
   };
   const someSelected = selectedIds.size > 0;
-  const allActiveSelected = activeFrameworks.length > 0 && selectedIds.size === activeFrameworks.length;
+  const allSelected = allFrameworks.length > 0 && selectedIds.size === allFrameworks.length;
+  const hasNonArchivedSelected = Array.from(selectedIds).some((id) => allFrameworks.find((fw) => fw.id === id)?.status !== "Archived");
 
   const handleBulkArchive = async () => {
     const ids = Array.from(selectedIds);
@@ -131,6 +142,17 @@ export default function FrameworksPage() {
       confirmLabel: "Archive",
     });
     if (ok) bulkArchiveMutation.mutate(ids);
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    const ok = await confirm({
+      title: `Delete ${ids.length} Framework${ids.length !== 1 ? "s" : ""}`,
+      message: `Permanently delete ${ids.length} framework${ids.length !== 1 ? "s" : ""} and ALL related data (nodes, scales, templates, rules, assessments, responses)? This cannot be undone.`,
+      variant: "danger",
+      confirmLabel: `Delete ${ids.length}`,
+    });
+    if (ok) bulkDeleteMutation.mutate(ids);
   };
 
   return (
@@ -150,14 +172,26 @@ export default function FrameworksPage() {
           </select>
           <div className="flex items-center gap-2">
             {someSelected && (
-              <button
-                onClick={handleBulkArchive}
-                disabled={bulkArchiveMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-status-warning border border-status-warning rounded-btn hover:bg-[#FFF7ED] transition"
-              >
-                <Archive className="w-4 h-4" />
-                Archive ({selectedIds.size})
-              </button>
+              <>
+                {hasNonArchivedSelected && (
+                  <button
+                    onClick={handleBulkArchive}
+                    disabled={bulkArchiveMutation.isPending}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-status-warning border border-status-warning rounded-btn hover:bg-[#FFF7ED] transition"
+                  >
+                    <Archive className="w-4 h-4" />
+                    Archive ({selectedIds.size})
+                  </button>
+                )}
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleteMutation.isPending}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-status-error border border-status-error rounded-btn hover:bg-status-error hover:text-white transition"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {bulkDeleteMutation.isPending ? "Deleting..." : `Delete (${selectedIds.size})`}
+                </button>
+              </>
             )}
             <button onClick={async () => { const r = await fetch(`${API_BASE}/bulk-frameworks/export-excel`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }); const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "frameworks.xlsx"; a.click(); URL.revokeObjectURL(u); }} className="kpmg-btn-secondary flex items-center gap-2 text-sm"><Download className="w-4 h-4" /> Export</button>
             <label className="kpmg-btn-secondary flex items-center gap-2 text-sm cursor-pointer"><Upload className="w-4 h-4" /> Import<input type="file" accept=".xlsx" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; setImportFile(file); const fd = new FormData(); fd.append("file", file); const r = await fetch(`${API_BASE}/bulk-frameworks/import-excel?preview=true`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd }); const p = await r.json(); if (r.ok) setImportPreview(p); e.target.value = ""; }} /></label>
@@ -187,17 +221,22 @@ export default function FrameworksPage() {
         ) : (
           <>
             {/* Select all bar */}
-            {activeFrameworks.length > 0 && (
+            {allFrameworks.length > 0 && (
               <div className="flex items-center gap-2 px-1 mb-3">
                 <input
                   type="checkbox"
-                  checked={allActiveSelected}
-                  ref={(el) => { if (el) el.indeterminate = someSelected && !allActiveSelected; }}
+                  checked={allSelected}
+                  ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
                   onChange={toggleSelectAll}
                   className="w-4 h-4 accent-kpmg-navy cursor-pointer"
-                  title={allActiveSelected ? "Deselect all" : "Select all non-archived"}
+                  title={allSelected ? "Deselect all" : "Select all"}
                 />
-                <span className="text-xs text-kpmg-placeholder font-body">Select all non-archived ({activeFrameworks.length})</span>
+                <span className="text-xs text-kpmg-placeholder font-body">
+                  {someSelected ? `${selectedIds.size} of ${allFrameworks.length} selected` : `Select all (${allFrameworks.length})`}
+                </span>
+                {someSelected && (
+                  <button onClick={() => setSelectedIds(new Set())} className="text-xs text-kpmg-light hover:underline font-body ml-auto">Clear selection</button>
+                )}
               </div>
             )}
             <div className="space-y-3 animate-stagger">
@@ -207,18 +246,14 @@ export default function FrameworksPage() {
                   className={`kpmg-card-hover flex items-center p-4 group cursor-pointer ${selectedIds.has(fw.id) ? "ring-2 ring-kpmg-light" : ""} ${fw.status === "Archived" ? "opacity-60" : ""}`}
                   onClick={() => router.push(`/frameworks/${fw.id}/hierarchy`)}
                 >
-                  {/* Checkbox — only for non-archived */}
-                  {fw.status !== "Archived" ? (
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(fw.id)}
-                      onChange={() => toggleSelect(fw.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-4 h-4 accent-kpmg-navy cursor-pointer shrink-0 mr-3"
-                    />
-                  ) : (
-                    <div className="w-4 h-4 shrink-0 mr-3" />
-                  )}
+                  {/* Checkbox — all frameworks can be selected */}
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(fw.id)}
+                    onChange={() => toggleSelect(fw.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-4 h-4 accent-kpmg-navy cursor-pointer shrink-0 mr-3"
+                  />
 
                   {/* Icon */}
                   <div className="w-12 h-12 rounded-card bg-kpmg-navy flex items-center justify-center shrink-0 mr-4">
