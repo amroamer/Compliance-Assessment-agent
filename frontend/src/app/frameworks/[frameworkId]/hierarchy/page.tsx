@@ -80,7 +80,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
   };
 
   const saveFwName = useMutation({
-    mutationFn: (data: { name: string; name_ar: string; abbreviation: string }) =>
+    mutationFn: (data: { name: string; name_ar: string; abbreviation: string; version: string }) =>
       api.put(`/frameworks/${frameworkId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["framework", frameworkId] });
