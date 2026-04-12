@@ -64,15 +64,12 @@ export default function UsersPage() {
     onError: (e: Error) => toast(e.message, "error"),
   });
 
-  const bulkDeactivateMutation = useMutation({
-    mutationFn: (ids: string[]) => api.post("/users/bulk-deactivate", { ids }),
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => api.post("/users/bulk-delete", { ids }),
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setSelectedIds(new Set());
-      const msg = data.already_inactive > 0
-        ? `${data.deactivated} deactivated, ${data.already_inactive} were already inactive`
-        : `${data.deactivated} ${data.deactivated === 1 ? "user" : "users"} deactivated`;
-      toast(msg, "success");
+      toast(`${data.deleted} ${data.deleted === 1 ? "user" : "users"} permanently deleted`, "success");
     },
     onError: (e: Error) => toast(e.message, "error"),
   });
@@ -101,20 +98,15 @@ export default function UsersPage() {
     }
   };
 
-  const handleBulkDeactivate = async () => {
+  const handleBulkDelete = async () => {
     const ids = Array.from(selectedIds);
-    const names = (users || [])
-      .filter((u) => ids.includes(u.id))
-      .map((u) => `${u.name} (${u.email})`)
-      .join("\n");
-
     const ok = await confirm({
-      title: `Deactivate ${ids.length} ${ids.length === 1 ? "User" : "Users"}`,
-      message: `Are you sure you want to deactivate the following ${ids.length === 1 ? "user" : "users"}? They will lose access to the platform.\n\n${names}`,
-      variant: "warning",
-      confirmLabel: `Deactivate ${ids.length}`,
+      title: `Delete ${ids.length} ${ids.length === 1 ? "User" : "Users"}`,
+      message: `Permanently delete ${ids.length} ${ids.length === 1 ? "user" : "users"}? This cannot be undone.`,
+      variant: "danger",
+      confirmLabel: `Delete ${ids.length}`,
     });
-    if (ok) bulkDeactivateMutation.mutate(ids);
+    if (ok) bulkDeleteMutation.mutate(ids);
   };
 
   const roleColors: Record<string, string> = {
@@ -132,15 +124,14 @@ export default function UsersPage() {
         <div className="flex items-center justify-between mb-6">
           <p className="text-sm text-kpmg-gray font-body">Manage platform users and their roles.</p>
           <div className="flex items-center gap-2">
-            {/* Bulk deactivate button — only shown when rows are selected */}
             {someSelected && (
               <button
-                onClick={handleBulkDeactivate}
-                disabled={bulkDeactivateMutation.isPending}
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteMutation.isPending}
                 className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-btn border border-status-error text-status-error hover:bg-status-error hover:text-white transition-colors font-medium"
               >
                 <Trash2 className="w-4 h-4" />
-                {bulkDeactivateMutation.isPending ? "Deactivating..." : `Deactivate Selected (${selectedIds.size})`}
+                {bulkDeleteMutation.isPending ? "Deleting..." : `Delete Selected (${selectedIds.size})`}
               </button>
             )}
             <button

@@ -2,7 +2,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import require_role
@@ -190,3 +190,31 @@ async def bulk_deactivate_users(
         "already_inactive": already_inactive,
         "requested": len(data.ids),
     }
+
+
+@users_router.post("/bulk-delete")
+async def bulk_delete_users(
+    data: BulkDeactivateUsersRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """Permanently delete multiple users. Cannot include your own account."""
+    if not data.ids:
+        raise HTTPException(status_code=400, detail="No user IDs provided")
+    str_ids = [str(uid) for uid in data.ids]
+    if str(current_user.id) in str_ids:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+    result = await db.execute(select(User).where(User.id.in_(data.ids)))
+    users = result.scalars().all()
+    if not users:
+        raise HTTPException(status_code=404, detail="No matching users found")
+    found_ids = [u.id for u in users]
+    # Nullify scored_by / reviewed_by references in assessment responses
+    from app.models.assessment_engine import AssessmentResponse, AssessmentInstance
+    from sqlalchemy import update
+    await db.execute(update(AssessmentResponse).where(AssessmentResponse.scored_by.in_(found_ids)).values(scored_by=None))
+    await db.execute(update(AssessmentInstance).where(AssessmentInstance.reviewed_by.in_(found_ids)).values(reviewed_by=None))
+    # Delete users
+    await db.execute(delete(User).where(User.id.in_(found_ids)))
+    await db.flush()
+    return {"deleted": len(users), "requested": len(data.ids)}
