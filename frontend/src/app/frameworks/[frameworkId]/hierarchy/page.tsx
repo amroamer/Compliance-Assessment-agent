@@ -57,7 +57,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
   const [editingNodeType, setEditingNodeType] = useState<NodeType | null>(null);
   const [ntForm, setNtForm] = useState({ label: "", name: "", color: "" });
   const [fwEditOpen, setFwEditOpen] = useState(false);
-  const [fwEditForm, setFwEditForm] = useState({ name: "", name_ar: "", abbreviation: "" });
+  const [fwEditForm, setFwEditForm] = useState({ name: "", name_ar: "", abbreviation: "", version: "" });
 
   const openNtEdit = (nt: NodeType) => {
     setEditingNodeType(nt);
@@ -310,7 +310,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
                 <span className="text-xs font-mono font-bold text-kpmg-light ml-2 px-1.5 py-0.5 bg-kpmg-light/10 rounded">{framework.abbreviation}</span>
               </div>
               <button
-                onClick={() => { setFwEditForm({ name: framework.name, name_ar: framework.name_ar || "", abbreviation: framework.abbreviation }); setFwEditOpen(true); }}
+                onClick={() => { setFwEditForm({ name: framework.name, name_ar: framework.name_ar || "", abbreviation: framework.abbreviation, version: framework.version || "" }); setFwEditOpen(true); }}
                 className="p-1 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition"
                 title="Edit framework name"
               >
@@ -658,16 +658,27 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
                   placeholder="اسم الإطار بالعربية"
                 />
               </div>
-              <div>
-                <label className="kpmg-label">Abbreviation *</label>
-                <input
-                  type="text"
-                  value={fwEditForm.abbreviation}
-                  onChange={(e) => setFwEditForm((f) => ({ ...f, abbreviation: e.target.value.toUpperCase() }))}
-                  className="kpmg-input font-mono uppercase"
-                  placeholder="e.g. NDI"
-                />
-                <p className="text-[10px] text-kpmg-placeholder mt-1">Short code used in page titles and headers</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="kpmg-label">Abbreviation *</label>
+                  <input
+                    type="text"
+                    value={fwEditForm.abbreviation}
+                    onChange={(e) => setFwEditForm((f) => ({ ...f, abbreviation: e.target.value.toUpperCase() }))}
+                    className="kpmg-input font-mono uppercase"
+                    placeholder="e.g. NDI"
+                  />
+                </div>
+                <div>
+                  <label className="kpmg-label">Version</label>
+                  <input
+                    type="text"
+                    value={fwEditForm.version}
+                    onChange={(e) => setFwEditForm((f) => ({ ...f, version: e.target.value }))}
+                    className="kpmg-input"
+                    placeholder="e.g. 2025, V1.1"
+                  />
+                </div>
               </div>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border">
