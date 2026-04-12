@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -116,6 +116,76 @@ async def bulk_delete_models(data: BulkDeleteModelsRequest, db: AsyncSession = D
         "requested": len(data.ids),
         "had_default": had_default,
     }
+
+@router.get("/api/settings/llm-models/export-excel")
+async def export_models_excel(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    from io import BytesIO
+    from openpyxl import Workbook
+    from fastapi.responses import StreamingResponse
+    models = (await db.execute(select(LlmModel).where(LlmModel.is_active == True).order_by(LlmModel.name))).scalars().all()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "LLM Models"
+    headers = ["name", "provider", "model_id", "endpoint_url", "max_tokens", "temperature", "context_window", "supports_documents", "is_default", "description"]
+    for i, h in enumerate(headers, 1):
+        ws.cell(row=1, column=i, value=h)
+    for row_idx, m in enumerate(models, 2):
+        vals = [m.name, m.provider, m.model_id, m.endpoint_url, m.max_tokens, float(m.temperature), m.context_window, m.supports_documents, m.is_default, m.description]
+        for i, v in enumerate(vals, 1):
+            ws.cell(row=row_idx, column=i, value=v)
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=llm_models.xlsx"})
+
+
+@router.post("/api/settings/llm-models/import-excel")
+async def import_models_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    from io import BytesIO
+    from openpyxl import load_workbook
+    content = await file.read()
+    wb = load_workbook(BytesIO(content))
+    ws = wb.active
+    headers = [cell.value for cell in ws[1]]
+    rows = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        r = dict(zip(headers, row))
+        if r.get("name"):
+            rows.append(r)
+    # Check existing by name
+    existing_names = set((await db.execute(select(LlmModel.name).where(LlmModel.is_active == True))).scalars().all())
+    new_rows = [r for r in rows if r["name"] not in existing_names]
+    dup_rows = [r for r in rows if r["name"] in existing_names]
+    if preview:
+        return {
+            "total_in_file": len(rows),
+            "new_items": [{"name": r["name"], "provider": r.get("provider", ""), "model_id": r.get("model_id", "")} for r in new_rows],
+            "duplicates": [{"name": r["name"]} for r in dup_rows],
+            "will_import": len(new_rows),
+            "will_skip": len(dup_rows),
+        }
+    VALID_PROVIDERS = {"ollama", "openai", "anthropic", "azure_openai", "custom"}
+    created = 0
+    for r in new_rows:
+        provider = r.get("provider", "custom")
+        if provider not in VALID_PROVIDERS:
+            provider = "custom"
+        m = LlmModel(
+            name=r["name"], provider=provider,
+            model_id=r.get("model_id", ""), endpoint_url=r.get("endpoint_url", ""),
+            max_tokens=int(r.get("max_tokens") or 4096),
+            temperature=Decimal(str(r.get("temperature") or 0.1)),
+            context_window=int(r.get("context_window") or 8192),
+            supports_documents=bool(r.get("supports_documents")),
+            is_default=bool(r.get("is_default")),
+            description=r.get("description"),
+        )
+        db.add(m)
+        created += 1
+    await db.flush()
+    return {"imported": created, "skipped_duplicates": len(dup_rows)}
+
 
 @router.post("/api/settings/llm-models/{model_id}/test")
 async def test_model(model_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
