@@ -97,7 +97,12 @@
       "Bash(grep -n \"isAr\\\\|name_ar\\\\|label_ar\\\\|description_ar\" /c/projects/AI-Badges/frontend/src/app/assessments/[instanceId]/page.tsx)",
       "Bash(grep -l \"useLocale\\\\|t\\(\" /c/projects/AI-Badges/frontend/src/app/**/page.tsx)",
       "Bash(grep -n \"bulk-scales\" \"C:\\\\projects\\\\AI-Badges\\\\backend\\\\app\\\\api\"*.py)",
-      "Bash(python -m pytest tests/test_scales_bulk.py tests/test_documents_bulk.py -v --tb=short)"
+      "Bash(python -m pytest tests/test_scales_bulk.py tests/test_documents_bulk.py -v --tb=short)",
+      "Bash(node -e \"try { require\\('docx'\\); console.log\\('docx available'\\); } catch\\(e\\) { console.log\\('docx not installed'\\); }\")",
+      "Bash(node -e \"try { require\\('docx'\\); console.log\\('docx OK'\\); } catch\\(e\\) { console.log\\(e.message\\); }\")",
+      "Bash(npm root:*)",
+      "Bash(npm init:*)",
+      "Bash(node generate_guide.js)"
     ]
   }
 }
