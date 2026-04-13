@@ -21,6 +21,9 @@ interface FrameworkNode {
   guidance: string | null; guidance_ar: string | null; sort_order: number; depth: number;
   is_active: boolean; is_assessable: boolean; weight: number | null; max_score: number | null;
   children_count: number;
+  assessment_type: string | null; maturity_level: number | null; evidence_type: string | null;
+  acceptance_criteria: string | null; acceptance_criteria_en: string | null;
+  spec_references: string | null; priority: string | null;
 }
 interface Framework { id: string; name: string; name_ar: string | null; abbreviation: string; version: string | null }
 
@@ -116,6 +119,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
         ...data,
         weight: data.weight ? parseFloat(data.weight) : null,
         max_score: data.max_score ? parseFloat(data.max_score) : null,
+        maturity_level: data.maturity_level ? parseInt(data.maturity_level) : null,
         reference_code: data.reference_code || null,
       };
       return editingId
@@ -569,7 +573,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border">
               <button onClick={() => setModalOpen(false)} className="kpmg-btn-secondary text-sm px-5 py-2.5">Cancel</button>
               <button
-                onClick={() => saveMutation.mutate({ ...form, maturity_level: form.maturity_level ? parseInt(form.maturity_level) : null, weight: form.weight ? parseFloat(form.weight) : null, max_score: form.max_score ? parseFloat(form.max_score) : null })}
+                onClick={() => saveMutation.mutate(form)}
                 disabled={saveMutation.isPending || !form.name || !form.node_type}
                 className="kpmg-btn-primary text-sm px-5 py-2.5 flex items-center gap-1.5"
               >
