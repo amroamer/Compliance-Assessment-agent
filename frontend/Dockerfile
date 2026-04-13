@@ -1,13 +1,17 @@
-FROM node:20-alpine
-
+FROM node:20-alpine AS builder
 WORKDIR /app
-
 COPY package.json package-lock.json* ./
 RUN npm install
-
 COPY . .
+ENV NEXT_PUBLIC_BASE_PATH=/AICompAgent
+RUN npm run build
 
+FROM node:20-alpine
+WORKDIR /app
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+USER nextjs
 EXPOSE 3000
-
-# Install deps into the volume mount at runtime, then start dev server
-CMD sh -c "npm install && npm run dev"
+CMD ["node", "server.js"]
