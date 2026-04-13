@@ -1,7 +1,9 @@
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from jose import jwt, JWTError
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +34,44 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     user.last_login = datetime.now(timezone.utc)
     token = create_access_token(data={"sub": str(user.id)})
     return TokenResponse(access_token=token)
+
+
+@router.post("/sso", response_model=TokenResponse)
+async def sso_login(request: Request, db: AsyncSession = Depends(get_db)):
+    """SSO auto-login from central auth service cookie."""
+    from app.config import settings
+
+    token = request.cookies.get("kpmg_auth_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="No SSO cookie")
+
+    if not settings.SSO_JWT_SECRET:
+        raise HTTPException(status_code=401, detail="SSO not configured")
+
+    try:
+        payload = jwt.decode(token, settings.SSO_JWT_SECRET, algorithms=["HS256"])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid SSO token")
+
+    email = payload.get("email")
+    if not email:
+        raise HTTPException(status_code=401, detail="SSO token missing email")
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        user = User(
+            id=uuid.uuid4(),
+            email=email,
+            hashed_password=get_password_hash(uuid.uuid4().hex),
+            name=payload.get("full_name", email.split("@")[0]),
+        )
+        db.add(user)
+        await db.flush()
+
+    access_token = create_access_token(data={"sub": str(user.id)})
+    return TokenResponse(access_token=access_token)
 
 
 @router.get("/me", response_model=UserResponse)

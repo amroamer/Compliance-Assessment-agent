@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
 
+    SSO_JWT_SECRET: str = ""
+
     UPLOAD_DIR: str = "/app/uploads"
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:80", "http://localhost"]
 
