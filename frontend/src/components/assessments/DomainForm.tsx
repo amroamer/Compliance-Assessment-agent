@@ -147,7 +147,7 @@ export function DomainForm({ productId, domainId, subRequirements, existingRespo
                   </span>
                 )}
                 {sr.accepts_documents && (
-                  <FileText className="w-4 h-4 text-gray-300" title="Accepts documents" />
+                  <span title="Accepts documents"><FileText className="w-4 h-4 text-gray-300" /></span>
                 )}
               </div>
             </button>

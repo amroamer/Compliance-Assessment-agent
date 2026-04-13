@@ -36,6 +36,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    command: sh -c "npm run dev"
+    user: "root"
     restart: unless-stopped
     env_file: .env
     volumes:

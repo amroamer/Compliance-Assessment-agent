@@ -2,7 +2,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: "admin" | "kpmg_user" | "client";
+  role: "admin" | "kpmg_user" | "client" | "viewer";
   is_active: boolean;
   assessed_entity_id: string | null;
   created_at: string;

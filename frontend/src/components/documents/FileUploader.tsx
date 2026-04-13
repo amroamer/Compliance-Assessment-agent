@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Upload, X, FileText, Loader2 } from "lucide-react";
+import { API_BASE } from "@/lib/api";
 
 const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".xlsx", ".pptx", ".png", ".jpg", ".jpeg"];
 const MAX_SIZE = 25 * 1024 * 1024;
