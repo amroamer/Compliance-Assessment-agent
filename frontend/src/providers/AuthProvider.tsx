@@ -30,11 +30,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUser = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token");
+      let token = localStorage.getItem("token");
+
+      // If no token, attempt SSO auto-login via HTTP-only cookie
+      if (!token) {
+        try {
+          const ssoRes = await fetch(
+            (process.env.NEXT_PUBLIC_BASE_PATH || "") + "/api/auth/sso",
+            { method: "POST", credentials: "include" }
+          );
+          if (ssoRes.ok) {
+            const ssoData = await ssoRes.json();
+            localStorage.setItem("token", ssoData.access_token);
+            token = ssoData.access_token;
+          }
+        } catch {
+          // SSO failed, will show login form
+        }
+      }
+
       if (!token) {
         setLoading(false);
         return;
       }
+
       const data = await api.get<User>("/auth/me");
       setUser(data);
     } catch {
