@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!token) {
         try {
           const ssoRes = await fetch(
-            (process.env.NEXT_PUBLIC_BASE_PATH || "") + "/api/auth/sso",
+            "/AICompAgent/api/auth/sso",
             { method: "POST", credentials: "include" }
           );
           if (ssoRes.ok) {
