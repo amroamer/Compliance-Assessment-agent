@@ -1,9 +1,11 @@
 """Shared test fixtures — tests against the running app via HTTP."""
+import os
+
 import pytest
 import httpx
 
-# Tests run against the live running application
-APP_URL = "http://localhost:8000"
+# Tests run against the live running application inside Docker container.
+APP_URL = os.environ.get("TEST_BASE_URL", "http://localhost:8000")
 
 
 @pytest.fixture(scope="session")

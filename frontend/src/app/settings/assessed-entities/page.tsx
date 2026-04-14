@@ -45,6 +45,9 @@ export default function AssessedEntitiesPage() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(EMPTY);
@@ -62,7 +65,13 @@ export default function AssessedEntitiesPage() {
   const { data: entities, isLoading } = useQuery<AssessedEntity[]>({ queryKey: ["assessed-entities"], queryFn: () => api.get("/assessed-entities") });
   const { data: regEntities } = useQuery<any[]>({ queryKey: ["reg-entities-list"], queryFn: () => api.get("/regulatory-entities/") });
 
-  const filtered = (entities || []).filter((e) => !search || e.name.toLowerCase().includes(search.toLowerCase()) || e.abbreviation?.toLowerCase().includes(search.toLowerCase()));
+  const filtered = (entities || []).filter((e) => {
+    if (search && !e.name.toLowerCase().includes(search.toLowerCase()) && !e.abbreviation?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (statusFilter && e.status !== statusFilter) return false;
+    if (typeFilter && e.entity_type !== typeFilter) return false;
+    if (categoryFilter && e.government_category !== categoryFilter) return false;
+    return true;
+  });
 
   const allSelected = filtered.length > 0 && filtered.every((e) => selectedIds.has(e.id));
   const someSelected = selectedIds.size > 0;
@@ -190,8 +199,21 @@ export default function AssessedEntitiesPage() {
           <h1 className="text-2xl font-heading font-bold text-kpmg-navy">Assessed Entities</h1>
           <p className="text-kpmg-gray text-sm font-body mt-1">Organizations being assessed against compliance frameworks.</p>
         </div>
-        <div className="flex items-center justify-between mb-6">
-          <div className="relative flex-1 max-w-md"><Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-kpmg-placeholder" /><input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-11" /></div>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="relative flex-1 max-w-sm"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-kpmg-placeholder" /><input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-10 text-sm" /></div>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="kpmg-input w-32 text-sm">
+            <option value="">All Status</option><option value="Active">Active</option><option value="Inactive">Inactive</option>
+          </select>
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="kpmg-input w-40 text-sm">
+            <option value="">All Types</option><option value="Government">Government</option><option value="Private">Private</option><option value="Semi-Government">Semi-Government</option>
+          </select>
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="kpmg-input w-40 text-sm">
+            <option value="">All Categories</option>{GOV_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          {(search || statusFilter || typeFilter || categoryFilter) && <button onClick={() => { setSearch(""); setStatusFilter(""); setTypeFilter(""); setCategoryFilter(""); }} className="text-xs text-kpmg-light hover:underline">Clear</button>}
+          <span className="text-xs text-kpmg-placeholder">{filtered.length} of {(entities || []).length}</span>
+        </div>
+        <div className="flex items-center justify-end mb-6">
           <div className="flex items-center gap-2">
             {/* Bulk deactivate button — only shown when rows are selected */}
             {someSelected && (

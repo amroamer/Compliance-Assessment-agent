@@ -39,6 +39,7 @@ export default function FrameworksPage() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const [entityFilter, setEntityFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -113,7 +114,7 @@ export default function FrameworksPage() {
   };
 
   // Selection helpers
-  const allFrameworks = frameworks || [];
+  const allFrameworks = (frameworks || []).filter((fw) => !statusFilter || fw.status === statusFilter);
   const activeFrameworks = allFrameworks.filter((fw) => fw.status !== "Archived");
   const toggleSelect = (id: string) => setSelectedIds((prev) => {
     const next = new Set(prev);
@@ -166,10 +167,16 @@ export default function FrameworksPage() {
 
         {/* Controls */}
         <div className="flex items-center justify-between mb-6">
-          <select value={entityFilter} onChange={(e) => setEntityFilter(e.target.value)} className="kpmg-input w-auto">
-            <option value="">All entities</option>
-            {entities?.map((e) => <option key={e.id} value={e.id}>{e.abbreviation} — {e.name}</option>)}
-          </select>
+          <div className="flex items-center gap-3">
+            <select value={entityFilter} onChange={(e) => setEntityFilter(e.target.value)} className="kpmg-input w-auto text-sm">
+              <option value="">All entities</option>
+              {entities?.map((e) => <option key={e.id} value={e.id}>{e.abbreviation} — {e.name}</option>)}
+            </select>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="kpmg-input w-36 text-sm">
+              <option value="">All Status</option><option value="Active">Active</option><option value="Draft">Draft</option><option value="Archived">Archived</option>
+            </select>
+            <span className="text-xs text-kpmg-placeholder">{allFrameworks.length} framework{allFrameworks.length !== 1 ? "s" : ""}</span>
+          </div>
           <div className="flex items-center gap-2">
             {someSelected && (
               <>

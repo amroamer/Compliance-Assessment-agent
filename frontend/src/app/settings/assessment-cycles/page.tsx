@@ -44,6 +44,7 @@ export default function AssessmentCyclesPage() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const [fwFilter, setFwFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
@@ -116,8 +117,8 @@ export default function AssessmentCyclesPage() {
     setModalOpen(true);
   };
 
-  // Selection helpers
-  const allCycles = cycles || [];
+  // Filter + Selection helpers
+  const allCycles = (cycles || []).filter((c) => !statusFilter || c.status === statusFilter);
   const toggleSelect = (id: string) => setSelectedIds((prev) => {
     const next = new Set(prev);
     next.has(id) ? next.delete(id) : next.add(id);
@@ -175,10 +176,16 @@ export default function AssessmentCyclesPage() {
         </div>
 
         <div className="flex items-center justify-between mb-6">
-          <select value={fwFilter} onChange={(e) => setFwFilter(e.target.value)} className="kpmg-input w-auto">
-            <option value="">All frameworks</option>
-            {frameworks?.map((fw) => <option key={fw.id} value={fw.id}>{fw.abbreviation} — {fw.name}</option>)}
-          </select>
+          <div className="flex items-center gap-3">
+            <select value={fwFilter} onChange={(e) => setFwFilter(e.target.value)} className="kpmg-input w-auto text-sm">
+              <option value="">All frameworks</option>
+              {frameworks?.map((fw) => <option key={fw.id} value={fw.id}>{fw.abbreviation} — {fw.name}</option>)}
+            </select>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="kpmg-input w-36 text-sm">
+              <option value="">All Status</option><option value="Active">Active</option><option value="Inactive">Inactive</option><option value="Completed">Completed</option>
+            </select>
+            <span className="text-xs text-kpmg-placeholder">{allCycles.length} cycle{allCycles.length !== 1 ? "s" : ""}</span>
+          </div>
           <div className="flex items-center gap-2">
             {someSelected && (
               <button

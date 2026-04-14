@@ -6,7 +6,7 @@ import { api, API_BASE } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
-import { Plus, Edit, Trash2, Zap, Star, CheckCircle, X, Save, Loader2, Download, Upload } from "lucide-react";
+import { Plus, Edit, Trash2, Zap, Star, CheckCircle, X, Save, Loader2, Download, Upload, Search } from "lucide-react";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 
 interface LlmModel { id: string; name: string; provider: string; model_id: string; endpoint_url: string; api_key_masked: string | null; max_tokens: number; temperature: number; context_window: number; supports_documents: boolean; is_default: boolean; is_active: boolean; description: string | null; last_tested_at: string | null }
@@ -36,6 +36,8 @@ export default function LlmModelsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(EMPTY);
   const [testing, setTesting] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [providerFilter, setProviderFilter] = useState("");
   const [importPreview, setImportPreview] = useState<any>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -48,7 +50,12 @@ export default function LlmModelsPage() {
     queryFn: () => api.get("/settings/llm-models"),
   });
 
-  const allSelected = (models?.length ?? 0) > 0 && (models ?? []).every((m) => selectedIds.has(m.id));
+  const filtered = (models || []).filter((m) => {
+    if (search && !m.name.toLowerCase().includes(search.toLowerCase()) && !m.model_id.toLowerCase().includes(search.toLowerCase())) return false;
+    if (providerFilter && m.provider !== providerFilter) return false;
+    return true;
+  });
+  const allSelected = filtered.length > 0 && filtered.every((m) => selectedIds.has(m.id));
   const someSelected = selectedIds.size > 0;
 
   const toggleSelect = (id: string) => {
@@ -202,6 +209,24 @@ export default function LlmModelsPage() {
           </div>
         </div>
 
+        {/* Filter bar */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-kpmg-placeholder" />
+            <input type="text" placeholder="Search by name or model ID..." value={search} onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-10 text-sm" />
+          </div>
+          <select value={providerFilter} onChange={(e) => setProviderFilter(e.target.value)} className="kpmg-input w-40 text-sm">
+            <option value="">All Providers</option>
+            <option value="ollama">Ollama</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="azure_openai">Azure OpenAI</option>
+            <option value="custom">Custom</option>
+          </select>
+          {(search || providerFilter) && <button onClick={() => { setSearch(""); setProviderFilter(""); }} className="text-xs text-kpmg-light hover:underline">Clear</button>}
+          <span className="text-xs text-kpmg-placeholder ml-auto">{filtered.length} of {(models || []).length}</span>
+        </div>
+
         {/* Selection summary bar */}
         {someSelected && (
           <div className="flex items-center justify-between px-4 py-2.5 mb-4 bg-kpmg-blue/5 border border-kpmg-blue/20 rounded-card">
@@ -227,7 +252,7 @@ export default function LlmModelsPage() {
           </div>
         ) : (
           <div className="space-y-3 animate-stagger">
-            {models.map((m) => {
+            {filtered.map((m) => {
               const isSelected = selectedIds.has(m.id);
               return (
                 <div

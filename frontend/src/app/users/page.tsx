@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, API_BASE } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import type { User } from "@/types";
-import { Plus, Users, X, Download, Upload, Trash2 } from "lucide-react";
+import { Plus, Users, X, Download, Upload, Trash2, Search } from "lucide-react";
 import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmModal";
@@ -20,6 +20,11 @@ export default function UsersPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
+
+  // ── Filter state ──
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   // ── Multi-select state ──
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -77,8 +82,15 @@ export default function UsersPage() {
   const { data: entities } = useQuery<any[]>({ queryKey: ["assessed-entities"], queryFn: () => api.get("/assessed-entities") });
 
   // ── Selection helpers ──
-  // Exclude only self — inactive users can still be selected (backend handles gracefully)
-  const selectableUsers = (users || []).filter((u) => u.id !== me?.id);
+  // Filtered users
+  const filtered = (users || []).filter((u) => {
+    if (search && !u.name.toLowerCase().includes(search.toLowerCase()) && !u.email.toLowerCase().includes(search.toLowerCase())) return false;
+    if (roleFilter && u.role !== roleFilter) return false;
+    if (statusFilter === "active" && !u.is_active) return false;
+    if (statusFilter === "disabled" && u.is_active) return false;
+    return true;
+  });
+  const selectableUsers = filtered.filter((u) => u.id !== me?.id);
   const allSelected = selectableUsers.length > 0 && selectableUsers.every((u) => selectedIds.has(u.id));
   const someSelected = selectedIds.size > 0;
 
@@ -121,7 +133,7 @@ export default function UsersPage() {
     <div>
       <Header title="User Management" />
       <div className="p-8 max-w-content mx-auto animate-fade-in-up">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-kpmg-gray font-body">Manage platform users and their roles.</p>
           <div className="flex items-center gap-2">
             {someSelected && (
@@ -163,6 +175,29 @@ export default function UsersPage() {
               {showCreate ? "Cancel" : "New User"}
             </button>
           </div>
+        </div>
+
+        {/* Filter bar */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-kpmg-placeholder" />
+            <input type="text" placeholder="Search by name or email..." value={search} onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-10 text-sm" />
+          </div>
+          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="kpmg-input w-40 text-sm">
+            <option value="">All Roles</option>
+            <option value="admin">Admin</option>
+            <option value="kpmg_user">KPMG User</option>
+            <option value="client">Client</option>
+          </select>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="kpmg-input w-36 text-sm">
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="disabled">Disabled</option>
+          </select>
+          {(search || roleFilter || statusFilter) && (
+            <button onClick={() => { setSearch(""); setRoleFilter(""); setStatusFilter(""); }} className="text-xs text-kpmg-light hover:underline">Clear</button>
+          )}
+          <span className="text-xs text-kpmg-placeholder ml-auto">{filtered.length} of {(users || []).length}</span>
         </div>
 
         {/* Create Form */}
@@ -220,10 +255,10 @@ export default function UsersPage() {
         {/* Table */}
         {isLoading ? (
           <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-16 kpmg-skeleton" />)}</div>
-        ) : !users?.length ? (
+        ) : !filtered.length ? (
           <div className="kpmg-card p-16 text-center">
             <Users className="w-14 h-14 text-kpmg-border mx-auto mb-3" />
-            <p className="text-kpmg-gray font-heading font-semibold">No users found</p>
+            <p className="text-kpmg-gray font-heading font-semibold">{users?.length ? "No users match filters" : "No users found"}</p>
           </div>
         ) : (
           <div className="kpmg-card overflow-hidden">
@@ -263,7 +298,7 @@ export default function UsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((u, idx) => {
+                {filtered.map((u, idx) => {
                   const isSelf = u.id === me?.id;
                   const isSelected = selectedIds.has(u.id);
                   return (

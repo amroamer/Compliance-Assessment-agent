@@ -49,6 +49,7 @@ export default function RegulatoryEntitiesPage() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
@@ -68,8 +69,10 @@ export default function RegulatoryEntitiesPage() {
     },
   });
 
+  const filtered = (entities || []).filter((e) => !statusFilter || e.status === statusFilter);
+
   // Derived selection helpers
-  const allSelected = (entities?.length ?? 0) > 0 && (entities ?? []).every((e) => selectedIds.has(e.id));
+  const allSelected = filtered.length > 0 && filtered.every((e) => selectedIds.has(e.id));
   const someSelected = selectedIds.size > 0;
 
   const toggleSelect = (id: string) => {
@@ -235,10 +238,16 @@ export default function RegulatoryEntitiesPage() {
 
         {/* Actions Bar */}
         <div className="flex items-center justify-between mb-6">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-kpmg-placeholder" />
-            <input type="text" placeholder="Search entities..." value={search}
-              onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-11" />
+          <div className="flex items-center gap-3 flex-1">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-kpmg-placeholder" />
+              <input type="text" placeholder="Search entities..." value={search}
+                onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-10 text-sm" />
+            </div>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="kpmg-input w-32 text-sm">
+              <option value="">All Status</option><option value="Active">Active</option><option value="Inactive">Inactive</option>
+            </select>
+            <span className="text-xs text-kpmg-placeholder">{filtered.length} of {(entities || []).length}</span>
           </div>
           <div className="flex items-center gap-2">
             {/* Bulk action buttons — only shown when rows are selected */}
@@ -328,7 +337,7 @@ export default function RegulatoryEntitiesPage() {
                 </tr>
               </thead>
               <tbody>
-                {entities.map((entity, idx) => {
+                {filtered.map((entity, idx) => {
                   const isSelected = selectedIds.has(entity.id);
                   return (
                     <tr
