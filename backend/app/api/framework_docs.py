@@ -494,8 +494,8 @@ async def import_entities_excel(file: UploadFile = File(...), preview: bool = Fa
     for row in ws.iter_rows(min_row=2, values_only=True):
         r = dict(zip(headers, row))
         if r.get("name"): rows.append(r)
-    # Check existing by name
-    existing_names = set((await db.execute(select(AssessedEntity.name))).scalars().all())
+    # Check existing by name (only active entities count as duplicates)
+    existing_names = set((await db.execute(select(AssessedEntity.name).where(AssessedEntity.status == "Active"))).scalars().all())
     new_rows = [r for r in rows if r["name"] not in existing_names]
     dup_rows = [r for r in rows if r["name"] in existing_names]
     if preview:
@@ -609,7 +609,7 @@ async def import_reg_entities_excel(file: UploadFile = File(...), preview: bool 
     for row in ws.iter_rows(min_row=2, values_only=True):
         r = dict(zip(headers_row, row))
         if r.get("abbreviation"): rows.append(r)
-    existing = set((await db.execute(select(RegulatoryEntity.abbreviation))).scalars().all())
+    existing = set((await db.execute(select(RegulatoryEntity.abbreviation).where(RegulatoryEntity.status == "Active"))).scalars().all())
     new_rows = [r for r in rows if r["abbreviation"] not in existing]
     dup_rows = [r for r in rows if r["abbreviation"] in existing]
     if preview:
