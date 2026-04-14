@@ -41,6 +41,8 @@ export default function LlmModelsPage() {
   const [importPreview, setImportPreview] = useState<any>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
+  const [modalTesting, setModalTesting] = useState(false);
+  const [modalTestPassed, setModalTestPassed] = useState(false);
 
   // ── Multi-select state ──
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -151,11 +153,30 @@ export default function LlmModelsPage() {
     setTesting(null);
   };
 
-  const openCreate = () => { setEditingId(null); setForm(EMPTY); setModalOpen(true); };
+  const openCreate = () => { setEditingId(null); setForm(EMPTY); setModalTestPassed(false); setModalOpen(true); };
   const openEdit = (m: LlmModel) => {
     setEditingId(m.id);
     setForm({ name: m.name, provider: m.provider, model_id: m.model_id, endpoint_url: m.endpoint_url, api_key: "", max_tokens: m.max_tokens, temperature: m.temperature, context_window: m.context_window, supports_documents: m.supports_documents, is_default: m.is_default, description: m.description || "" });
+    setModalTestPassed(false);
     setModalOpen(true);
+  };
+
+  const testModalConfig = async () => {
+    setModalTesting(true);
+    try {
+      const result: any = await api.post("/settings/llm-models/test-config", form);
+      if (result.success) {
+        toast(`Test passed (${result.response_time_ms}ms)`, "success");
+        setModalTestPassed(true);
+      } else {
+        toast(`Test failed: ${result.error}`, "error");
+        setModalTestPassed(false);
+      }
+    } catch (e: any) {
+      toast(e.message, "error");
+      setModalTestPassed(false);
+    }
+    setModalTesting(false);
   };
 
   return (
@@ -350,7 +371,7 @@ export default function LlmModelsPage() {
                 </div>
                 <div>
                   <label className="kpmg-label">Provider *</label>
-                  <select value={form.provider} onChange={(e) => setForm(f => ({ ...f, provider: e.target.value, endpoint_url: PROVIDER_DEFAULTS[e.target.value] || f.endpoint_url }))} className="kpmg-input">
+                  <select value={form.provider} onChange={(e) => { setForm(f => ({ ...f, provider: e.target.value, endpoint_url: PROVIDER_DEFAULTS[e.target.value] || f.endpoint_url })); setModalTestPassed(false); }} className="kpmg-input">
                     <option value="ollama">Ollama (Local)</option>
                     <option value="openai">OpenAI</option>
                     <option value="anthropic">Anthropic</option>
@@ -361,15 +382,15 @@ export default function LlmModelsPage() {
               </div>
               <div>
                 <label className="kpmg-label">Model ID *</label>
-                <input type="text" value={form.model_id} onChange={(e) => setForm(f => ({ ...f, model_id: e.target.value }))} className="kpmg-input font-mono" placeholder="qwen2.5:7b" />
+                <input type="text" value={form.model_id} onChange={(e) => { setForm(f => ({ ...f, model_id: e.target.value })); setModalTestPassed(false); }} className="kpmg-input font-mono" placeholder="qwen2.5:7b" />
               </div>
               <div>
                 <label className="kpmg-label">Endpoint URL *</label>
-                <input type="text" value={form.endpoint_url} onChange={(e) => setForm(f => ({ ...f, endpoint_url: e.target.value }))} className="kpmg-input font-mono text-xs" />
+                <input type="text" value={form.endpoint_url} onChange={(e) => { setForm(f => ({ ...f, endpoint_url: e.target.value })); setModalTestPassed(false); }} className="kpmg-input font-mono text-xs" />
               </div>
               <div>
                 <label className="kpmg-label">API Key {form.provider === "ollama" ? "(not required)" : ""}</label>
-                <input type="password" value={form.api_key} onChange={(e) => setForm(f => ({ ...f, api_key: e.target.value }))} className="kpmg-input" placeholder={editingId ? "Leave blank to keep existing" : "sk-..."} />
+                <input type="password" value={form.api_key} onChange={(e) => { setForm(f => ({ ...f, api_key: e.target.value })); setModalTestPassed(false); }} className="kpmg-input" placeholder={editingId ? "Leave blank to keep existing" : "sk-..."} />
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div><label className="kpmg-label">Max Tokens</label><input type="number" value={form.max_tokens} onChange={(e) => setForm(f => ({ ...f, max_tokens: parseInt(e.target.value) }))} className="kpmg-input" /></div>
@@ -391,15 +412,26 @@ export default function LlmModelsPage() {
                 <textarea value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} rows={2} className="kpmg-input resize-none" />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border">
-              <button onClick={() => setModalOpen(false)} className="kpmg-btn-secondary text-sm px-5 py-2.5">Cancel</button>
+            <div className="flex items-center justify-between px-6 py-4 border-t border-kpmg-border">
               <button
-                onClick={() => saveMutation.mutate(form)}
-                disabled={!form.name || !form.model_id || !form.endpoint_url || saveMutation.isPending}
-                className="kpmg-btn-primary text-sm px-5 py-2.5 flex items-center gap-1.5"
+                onClick={testModalConfig}
+                disabled={!form.model_id || !form.endpoint_url || modalTesting}
+                className={`text-sm px-5 py-2.5 flex items-center gap-1.5 rounded-btn font-medium transition-colors ${modalTestPassed ? "bg-status-success/10 text-status-success border border-status-success/30" : "border border-kpmg-border text-kpmg-navy hover:bg-kpmg-bg"}`}
               >
-                <Save className="w-4 h-4" />{saveMutation.isPending ? "Saving..." : "Save"}
+                {modalTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                {modalTesting ? "Testing..." : modalTestPassed ? "Test Passed" : "Test Model"}
               </button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setModalOpen(false)} className="kpmg-btn-secondary text-sm px-5 py-2.5">Cancel</button>
+                <button
+                  onClick={() => saveMutation.mutate(form)}
+                  disabled={!form.name || !form.model_id || !form.endpoint_url || !modalTestPassed || saveMutation.isPending}
+                  className="kpmg-btn-primary text-sm px-5 py-2.5 flex items-center gap-1.5"
+                  title={!modalTestPassed ? "Test the model before saving" : ""}
+                >
+                  <Save className="w-4 h-4" />{saveMutation.isPending ? "Saving..." : "Save"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

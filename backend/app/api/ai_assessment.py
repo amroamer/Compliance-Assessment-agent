@@ -194,6 +194,21 @@ async def delete_model(model_id: uuid.UUID, db: AsyncSession = Depends(get_db), 
     if not m: raise HTTPException(404, "Model not found")
     m.is_active = False; await db.flush()
 
+@router.post("/api/settings/llm-models/test-config")
+async def test_model_config(data: LlmModelCreate, current_user: User = Depends(require_role("admin"))):
+    """Test a model configuration without saving it."""
+    temp = LlmModel(
+        provider=data.provider, model_id=data.model_id, endpoint_url=data.endpoint_url,
+        api_key=data.api_key or None, max_tokens=data.max_tokens, temperature=data.temperature,
+    )
+    start = time.time()
+    try:
+        response_text = await _call_llm(temp, "You are a test assistant.", "Say 'Hello, I am working correctly.' in exactly those words.")
+        elapsed = int((time.time() - start) * 1000)
+        return {"success": True, "response": response_text[:200], "response_time_ms": elapsed}
+    except Exception as e:
+        return {"success": False, "error": str(e), "response_time_ms": int((time.time() - start) * 1000)}
+
 @router.post("/api/settings/llm-models/{model_id}/test")
 async def test_model(model_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     m = (await db.execute(select(LlmModel).where(LlmModel.id == model_id))).scalar_one_or_none()
