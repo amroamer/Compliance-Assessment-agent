@@ -497,11 +497,17 @@ async def import_entities_excel(file: UploadFile = File(...), preview: bool = Fa
     # Purge inactive entities whose names match import file (so they don't block re-import)
     import_names = [r["name"] for r in rows]
     if import_names:
-        from sqlalchemy import delete as sa_delete
-        await db.execute(sa_delete(AssessedEntity).where(AssessedEntity.name.in_(import_names), AssessedEntity.status != "Active"))
-        await db.flush()
+        from app.models.assessment_engine import entity_regulatory_entities as ere_table
+        inactive_ids_q = await db.execute(
+            select(AssessedEntity.id).where(AssessedEntity.name.in_(import_names), AssessedEntity.status != "Active")
+        )
+        inactive_ids = [row[0] for row in inactive_ids_q.all()]
+        if inactive_ids:
+            await db.execute(ere_table.delete().where(ere_table.c.entity_id.in_(inactive_ids)))
+            await db.execute(delete(AssessedEntity).where(AssessedEntity.id.in_(inactive_ids)))
+            await db.flush()
     # Check existing by name (only remaining active entities count as duplicates)
-    existing_names = set((await db.execute(select(AssessedEntity.name).where(AssessedEntity.status == "Active"))).scalars().all())
+    existing_names = set((await db.execute(select(AssessedEntity.name))).scalars().all())
     new_rows = [r for r in rows if r["name"] not in existing_names]
     dup_rows = [r for r in rows if r["name"] in existing_names]
     if preview:
