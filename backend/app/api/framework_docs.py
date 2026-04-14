@@ -494,7 +494,13 @@ async def import_entities_excel(file: UploadFile = File(...), preview: bool = Fa
     for row in ws.iter_rows(min_row=2, values_only=True):
         r = dict(zip(headers, row))
         if r.get("name"): rows.append(r)
-    # Check existing by name (only active entities count as duplicates)
+    # Purge inactive entities whose names match import file (so they don't block re-import)
+    import_names = [r["name"] for r in rows]
+    if import_names:
+        from sqlalchemy import delete as sa_delete
+        await db.execute(sa_delete(AssessedEntity).where(AssessedEntity.name.in_(import_names), AssessedEntity.status != "Active"))
+        await db.flush()
+    # Check existing by name (only remaining active entities count as duplicates)
     existing_names = set((await db.execute(select(AssessedEntity.name).where(AssessedEntity.status == "Active"))).scalars().all())
     new_rows = [r for r in rows if r["name"] not in existing_names]
     dup_rows = [r for r in rows if r["name"] in existing_names]
