@@ -486,18 +486,20 @@ async def export_entities_excel(db: AsyncSession = Depends(get_db), current_user
 async def import_entities_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     from app.models.regulatory_entity import RegulatoryEntity
     from app.models.assessment_engine import entity_regulatory_entities as ere_table
-    content = await file.read()
-    wb = load_workbook(BytesIO(content))
-    ws = wb.active
-    headers = [cell.value for cell in ws[1]]
-    rows = []
-    for row in ws.iter_rows(min_row=2, values_only=True):
-        r = dict(zip(headers, row))
-        if r.get("name"): rows.append(r)
+    try:
+        content = await file.read()
+        wb = load_workbook(BytesIO(content))
+        ws = wb.active
+        headers = [cell.value for cell in ws[1]]
+        rows = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            r = dict(zip(headers, row))
+            if r.get("name"): rows.append(r)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse Excel file: {e}")
     # Purge inactive entities whose names match import file (so they don't block re-import)
     import_names = [r["name"] for r in rows]
     if import_names:
-        from app.models.assessment_engine import entity_regulatory_entities as ere_table
         inactive_ids_q = await db.execute(
             select(AssessedEntity.id).where(AssessedEntity.name.in_(import_names), AssessedEntity.status != "Active")
         )
@@ -518,29 +520,33 @@ async def import_entities_excel(file: UploadFile = File(...), preview: bool = Fa
     # Resolve regulatory entities
     reg_entities = {re.abbreviation: re.id for re in (await db.execute(select(RegulatoryEntity))).scalars().all()}
     created = 0
-    for r in new_rows:
-        # Parse regulatory_entities (comma-separated) or fallback to old column
-        reg_str = r.get("regulatory_entities") or r.get("regulatory_entity_abbreviation") or ""
-        reg_abbr_list = [a.strip() for a in str(reg_str).split(",") if a.strip()]
-        reg_id = reg_entities.get(reg_abbr_list[0]) if reg_abbr_list else None
-        entity = AssessedEntity(
-            name=r["name"], name_ar=r.get("name_ar"), abbreviation=r.get("abbreviation"),
-            entity_type=r.get("entity_type"), government_category=r.get("government_category"),
-            sector=r.get("sector"), regulatory_entity_id=reg_id,
-            registration_number=r.get("registration_number"), contact_person=r.get("contact_person"),
-            contact_email=r.get("contact_email"), contact_phone=r.get("contact_phone"),
-            website=r.get("website"), primary_color=r.get("primary_color"), secondary_color=r.get("secondary_color"),
-            notes=r.get("notes"), status=r.get("status") or "Active",
-        )
-        db.add(entity)
+    try:
+        for r in new_rows:
+            # Parse regulatory_entities (comma-separated) or fallback to old column
+            reg_str = r.get("regulatory_entities") or r.get("regulatory_entity_abbreviation") or ""
+            reg_abbr_list = [a.strip() for a in str(reg_str).split(",") if a.strip()]
+            reg_id = reg_entities.get(reg_abbr_list[0]) if reg_abbr_list else None
+            entity = AssessedEntity(
+                name=r["name"], name_ar=r.get("name_ar"), abbreviation=r.get("abbreviation"),
+                entity_type=r.get("entity_type"), government_category=r.get("government_category"),
+                sector=r.get("sector"), regulatory_entity_id=reg_id,
+                registration_number=r.get("registration_number"), contact_person=r.get("contact_person"),
+                contact_email=r.get("contact_email"), contact_phone=r.get("contact_phone"),
+                website=r.get("website"), primary_color=r.get("primary_color"), secondary_color=r.get("secondary_color"),
+                notes=r.get("notes"), status=r.get("status") or "Active",
+            )
+            db.add(entity)
+            await db.flush()
+            # Create junction table entries for all regulatory entities
+            for abbr in reg_abbr_list:
+                rid = reg_entities.get(abbr)
+                if rid:
+                    await db.execute(ere_table.insert().values(entity_id=entity.id, regulatory_entity_id=rid))
+            created += 1
         await db.flush()
-        # Create junction table entries for all regulatory entities
-        for abbr in reg_abbr_list:
-            rid = reg_entities.get(abbr)
-            if rid:
-                await db.execute(ere_table.insert().values(entity_id=entity.id, regulatory_entity_id=rid))
-        created += 1
-    await db.flush()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=f"Import failed at row {created + 1}: {e}")
     return {"imported": created, "skipped_duplicates": len(dup_rows)}
 
 
