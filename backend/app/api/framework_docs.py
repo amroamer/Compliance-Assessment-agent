@@ -724,14 +724,17 @@ async def export_frameworks_excel(db: AsyncSession = Depends(get_db), current_us
 
 @router.post("/api/bulk-frameworks/import-excel")
 async def import_frameworks_excel(file: UploadFile = File(...), preview: bool = False, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
-    content = await file.read()
-    wb = load_workbook(BytesIO(content))
-    ws = wb.active
-    headers_row = [cell.value for cell in ws[1]]
-    rows = []
-    for row in ws.iter_rows(min_row=2, values_only=True):
-        r = dict(zip(headers_row, row))
-        if r.get("abbreviation"): rows.append(r)
+    try:
+        content = await file.read()
+        wb = load_workbook(BytesIO(content))
+        ws = wb.active
+        headers_row = [cell.value for cell in ws[1]]
+        rows = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            r = dict(zip(headers_row, row))
+            if r.get("abbreviation"): rows.append(r)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse Excel file: {e}")
     existing = set((await db.execute(select(ComplianceFramework.abbreviation))).scalars().all())
     new_rows = [r for r in rows if r["abbreviation"] not in existing]
     dup_rows = [r for r in rows if r["abbreviation"] in existing]
@@ -740,12 +743,16 @@ async def import_frameworks_excel(file: UploadFile = File(...), preview: bool = 
                 "duplicates": [{"name": r.get("name", ""), "abbreviation": r["abbreviation"]} for r in dup_rows], "will_import": len(new_rows), "will_skip": len(dup_rows)}
     reg_entities = {re.abbreviation: re.id for re in (await db.execute(select(RegulatoryEntity))).scalars().all()}
     created = 0
-    for r in new_rows:
-        reg_id = reg_entities.get(r.get("regulatory_entity_abbreviation")) if r.get("regulatory_entity_abbreviation") else None
-        db.add(ComplianceFramework(name=r.get("name", ""), abbreviation=r["abbreviation"], name_ar=r.get("name_ar"),
-            description=r.get("description"), version=r.get("version"), status=r.get("status") or "Active",
-            icon=r.get("icon") or "book", entity_id=reg_id,
-            requires_product_assessment=bool(r.get("requires_product_assessment"))))
-        created += 1
-    await db.flush()
+    try:
+        for r in new_rows:
+            reg_id = reg_entities.get(r.get("regulatory_entity_abbreviation")) if r.get("regulatory_entity_abbreviation") else None
+            db.add(ComplianceFramework(name=r.get("name", ""), abbreviation=r["abbreviation"], name_ar=r.get("name_ar"),
+                description=r.get("description"), version=r.get("version"), status=r.get("status") or "Active",
+                icon=r.get("icon") or "book", entity_id=reg_id,
+                requires_product_assessment=bool(r.get("requires_product_assessment"))))
+            created += 1
+        await db.flush()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=f"Import failed at row {created + 1}: {e}")
     return {"imported": created, "skipped_duplicates": len(dup_rows)}

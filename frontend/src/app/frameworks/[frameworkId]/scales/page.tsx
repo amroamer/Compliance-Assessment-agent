@@ -369,10 +369,13 @@ export default function ScalesPage({ params }: { params: Promise<{ frameworkId: 
         onClose={() => { setImportPreview(null); setImportFile(null); }}
         onConfirm={async () => {
           if (!importFile) return; setImporting(true);
-          const fd = new FormData(); fd.append("file", importFile);
-          const r = await fetch(`${API_BASE}/frameworks/${frameworkId}/bulk-scales/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
-          const d = await r.json(); setImporting(false); setImportPreview(null); setImportFile(null);
-          if (r.ok) { toast(`Imported ${d.imported_scales} scales (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["scales"] }); } else { toast(d.detail || "Import failed", "error"); }
+          try {
+            const fd = new FormData(); fd.append("file", importFile);
+            const r = await fetch(`${API_BASE}/frameworks/${frameworkId}/bulk-scales/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+            if (!r.ok) { const text = await r.text(); try { const err = JSON.parse(text); toast(err.detail || "Import failed", "error"); } catch { toast(`Import failed: ${r.status} ${r.statusText}`, "error"); } return; }
+            const d = await r.json();
+            toast(`Imported ${d.imported_scales} scales (${d.skipped_duplicates} skipped)`, "success"); queryClient.invalidateQueries({ queryKey: ["scales"] });
+          } catch (e: any) { toast(e.message || "Import failed", "error"); } finally { setImporting(false); setImportPreview(null); setImportFile(null); }
         }} />
     </div>
   );

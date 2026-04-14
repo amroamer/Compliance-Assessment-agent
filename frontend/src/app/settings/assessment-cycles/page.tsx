@@ -372,10 +372,15 @@ export default function AssessmentCyclesPage() {
       )}
       <ImportPreviewModal open={!!importPreview} preview={importPreview} loading={importing} itemLabel="cycles" nameKey="name"
         onClose={() => { setImportPreview(null); setImportFile(null); }}
-        onConfirm={async () => { if (!importFile) return; setImporting(true); const fd = new FormData(); fd.append("file", importFile);
-          const r = await fetch(`${API_BASE}/bulk-cycles/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
-          const d = await r.json(); setImporting(false); setImportPreview(null); setImportFile(null);
-          if (r.ok) { queryClient.invalidateQueries({ queryKey: ["cycle-configs"] }); toast(`Imported ${d.imported} cycles`, "success"); }
+        onConfirm={async () => {
+          if (!importFile) return; setImporting(true);
+          try {
+            const fd = new FormData(); fd.append("file", importFile);
+            const r = await fetch(`${API_BASE}/bulk-cycles/import-excel`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: fd });
+            if (!r.ok) { const text = await r.text(); try { const err = JSON.parse(text); toast(err.detail || "Import failed", "error"); } catch { toast(`Import failed: ${r.status} ${r.statusText}`, "error"); } return; }
+            const d = await r.json();
+            toast(`Imported ${d.imported} cycles`, "success"); queryClient.invalidateQueries({ queryKey: ["cycle-configs"] });
+          } catch (e: any) { toast(e.message || "Import failed", "error"); } finally { setImporting(false); setImportPreview(null); setImportFile(null); }
         }} />
     </div>
   );
