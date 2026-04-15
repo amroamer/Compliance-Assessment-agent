@@ -14,8 +14,7 @@ import {
 } from "lucide-react";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 
-interface NodeFormFieldConfig { key: string; label: string; label_ar?: string; type: "text" | "textarea" | "number" | "select" | "attachment"; required: boolean; visible: boolean; sort_order: number; options?: { value: string; label: string }[] }
-interface NodeType { id: string; name: string; label: string; color: string | null; sort_order: number; is_assessable_default: boolean; node_form_fields: NodeFormFieldConfig[] | null }
+interface NodeType { id: string; name: string; label: string; color: string | null; sort_order: number; is_assessable_default: boolean }
 interface FrameworkNode {
   id: string; parent_id: string | null; node_type: string; reference_code: string | null;
   name: string; name_ar: string | null; description: string | null; description_ar: string | null;
@@ -24,37 +23,26 @@ interface FrameworkNode {
   children_count: number;
   assessment_type: string | null; maturity_level: number | null; evidence_type: string | null;
   acceptance_criteria: string | null; acceptance_criteria_en: string | null;
-  spec_references: string | null; priority: string | null; metadata_json: Record<string, any> | null;
+  spec_references: string | null; priority: string | null;
 }
-
-const KNOWN_OPTIONAL_FIELDS: NodeFormFieldConfig[] = [
-  { key: "description", label: "Description", label_ar: "الوصف", type: "textarea", required: false, visible: true, sort_order: 0 },
-  { key: "description_ar", label: "Description (Arabic)", label_ar: "الوصف بالعربية", type: "textarea", required: false, visible: true, sort_order: 1 },
-  { key: "guidance", label: "Assessment Guidance", label_ar: "إرشادات التقييم", type: "textarea", required: false, visible: true, sort_order: 2 },
-  { key: "guidance_ar", label: "Guidance (Arabic)", label_ar: "الإرشادات بالعربية", type: "textarea", required: false, visible: true, sort_order: 3 },
-  { key: "weight", label: "Weight", label_ar: "الوزن", type: "number", required: false, visible: true, sort_order: 4 },
-  { key: "max_score", label: "Max Score", label_ar: "الدرجة القصوى", type: "number", required: false, visible: true, sort_order: 5 },
-  { key: "assessment_type", label: "Assessment Type", label_ar: "نوع التقييم", type: "select", required: false, visible: true, sort_order: 6, options: [{ value: "maturity", label: "Maturity" }, { value: "compliance", label: "Compliance" }] },
-  { key: "maturity_level", label: "Maturity Level", label_ar: "مستوى النضج", type: "select", required: false, visible: true, sort_order: 7, options: [{ value: "0", label: "L0" }, { value: "1", label: "L1" }, { value: "2", label: "L2" }, { value: "3", label: "L3" }, { value: "4", label: "L4" }, { value: "5", label: "L5" }] },
-  { key: "evidence_type", label: "Evidence Type", label_ar: "نوع الأدلة", type: "text", required: false, visible: true, sort_order: 8 },
-  { key: "acceptance_criteria_en", label: "Acceptance Criteria (EN)", label_ar: "معايير القبول (إنجليزي)", type: "textarea", required: false, visible: true, sort_order: 9 },
-  { key: "acceptance_criteria", label: "Acceptance Criteria (AR)", label_ar: "معايير القبول", type: "textarea", required: false, visible: true, sort_order: 10 },
-  { key: "spec_references", label: "Spec References", label_ar: "المراجع", type: "text", required: false, visible: true, sort_order: 11 },
-  { key: "priority", label: "Priority", label_ar: "الأولوية", type: "select", required: false, visible: true, sort_order: 12, options: [{ value: "P1", label: "P1" }, { value: "P2", label: "P2" }, { value: "P3", label: "P3" }] },
-];
-
-const KNOWN_KEYS = new Set(["parent_id", "node_type", "reference_code", "name", "name_ar", "description", "description_ar", "guidance", "guidance_ar", "is_assessable", "weight", "max_score", "assessment_type", "maturity_level", "evidence_type", "acceptance_criteria", "acceptance_criteria_en", "spec_references", "priority"]);
 interface Framework { id: string; name: string; name_ar: string | null; abbreviation: string; version: string | null }
 
 interface NodeForm {
   parent_id: string | null; node_type: string; reference_code: string; name: string; name_ar: string;
-  is_assessable: boolean;
-  [key: string]: any; // Dynamic fields from node_form_fields config
+  description: string; description_ar: string; guidance: string; guidance_ar: string;
+  is_assessable: boolean; weight: string; max_score: string;
+  assessment_type: string; maturity_level: string; evidence_type: string;
+  acceptance_criteria: string; acceptance_criteria_en: string;
+  spec_references: string; priority: string;
 }
 
 const EMPTY_FORM: NodeForm = {
   parent_id: null, node_type: "", reference_code: "", name: "", name_ar: "",
-  is_assessable: false,
+  description: "", description_ar: "", guidance: "", guidance_ar: "",
+  is_assessable: false, weight: "", max_score: "",
+  assessment_type: "", maturity_level: "", evidence_type: "",
+  acceptance_criteria: "", acceptance_criteria_en: "",
+  spec_references: "", priority: "",
 };
 
 export default function HierarchyBuilderPage({ params }: { params: Promise<{ frameworkId: string }> }) {
@@ -70,24 +58,20 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [editingNodeType, setEditingNodeType] = useState<NodeType | null>(null);
-  const [ntForm, setNtForm] = useState({ label: "", name: "", color: "", node_form_fields: [] as NodeFormFieldConfig[] });
-  const [activeFormFields, setActiveFormFields] = useState<NodeFormFieldConfig[]>([]);
+  const [ntForm, setNtForm] = useState({ label: "", name: "", color: "" });
   const [fwEditOpen, setFwEditOpen] = useState(false);
   const [fwEditForm, setFwEditForm] = useState({ name: "", name_ar: "", abbreviation: "", version: "" });
 
   const openNtEdit = (nt: NodeType) => {
     setEditingNodeType(nt);
-    setNtForm({ label: nt.label, name: nt.name, color: nt.color || "#00338D",
-      node_form_fields: nt.node_form_fields || KNOWN_OPTIONAL_FIELDS.map(f => ({ ...f })),
-    });
+    setNtForm({ label: nt.label, name: nt.name, color: nt.color || "#00338D" });
   };
 
   const saveNodeType = async () => {
     if (!editingNodeType) return;
     try {
       await api.put(`/frameworks/${frameworkId}/node-types/${editingNodeType.id}`, {
-        label: ntForm.label, name: ntForm.name, color: ntForm.color,
-        node_form_fields: ntForm.node_form_fields,
+        ...ntForm,
         sort_order: editingNodeType.sort_order,
         is_assessable_default: editingNodeType.is_assessable_default,
       });
@@ -132,33 +116,12 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
   const saveMutation = useMutation({
     mutationFn: (data: NodeForm) => {
       const payload: any = {
-        parent_id: data.parent_id,
-        node_type: data.node_type,
+        ...data,
+        weight: data.weight ? parseFloat(data.weight) : null,
+        max_score: data.max_score ? parseFloat(data.max_score) : null,
+        maturity_level: data.maturity_level ? parseInt(data.maturity_level) : null,
         reference_code: data.reference_code || null,
-        name: data.name,
-        name_ar: data.name_ar || null,
-        is_assessable: data.is_assessable,
       };
-      const customMeta: Record<string, any> = {};
-      // Separate known DB columns from custom metadata fields
-      const fields = activeFormFields.length > 0 ? activeFormFields : KNOWN_OPTIONAL_FIELDS;
-      for (const fc of fields) {
-        const val = data[fc.key];
-        if (KNOWN_KEYS.has(fc.key)) {
-          if (fc.key === "weight" || fc.key === "max_score") {
-            payload[fc.key] = val ? parseFloat(val) : null;
-          } else if (fc.key === "maturity_level") {
-            payload[fc.key] = val ? parseInt(val) : null;
-          } else {
-            payload[fc.key] = val || null;
-          }
-        } else {
-          if (val !== "" && val !== null && val !== undefined) {
-            customMeta[fc.key] = val;
-          }
-        }
-      }
-      if (Object.keys(customMeta).length > 0) payload.metadata_json = customMeta;
       return editingId
         ? api.put(`/frameworks/${frameworkId}/nodes/${editingId}`, payload)
         : api.post(`/frameworks/${frameworkId}/nodes`, payload);
@@ -219,8 +182,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
 
   const openAddRoot = () => {
     setEditingId(null);
-    setForm({ ...EMPTY_FORM });
-    setActiveFormFields([]);
+    setForm(EMPTY_FORM);
     setParentBreadcrumb("");
     setError("");
     setModalOpen(true);
@@ -229,33 +191,25 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
   const openAddChild = (parentNode: FrameworkNode) => {
     setEditingId(null);
     setForm({ ...EMPTY_FORM, parent_id: parentNode.id });
-    // Infer node type form fields from parent's child type
-    setActiveFormFields([]);
     setParentBreadcrumb(`${parentNode.name}${parentNode.reference_code ? ` (${parentNode.reference_code})` : ""}`);
     setError("");
     setModalOpen(true);
+    // Auto-expand parent
     setExpanded((prev) => new Set(prev).add(parentNode.id));
   };
 
   const openEdit = (node: FrameworkNode) => {
     setEditingId(node.id);
-    const nt = (nodeTypes || []).find((t) => t.name === node.node_type);
-    const fieldConfig = nt?.node_form_fields || [];
-    setActiveFormFields(fieldConfig);
-    // Build form from node data — core + configured fields
-    const formData: NodeForm = {
+    setForm({
       parent_id: node.parent_id, node_type: node.node_type, reference_code: node.reference_code || "",
-      name: node.name, name_ar: node.name_ar || "", is_assessable: node.is_assessable,
-    };
-    // Populate known optional fields
-    for (const fc of (fieldConfig.length > 0 ? fieldConfig : KNOWN_OPTIONAL_FIELDS)) {
-      if (KNOWN_KEYS.has(fc.key)) {
-        formData[fc.key] = (node as any)[fc.key]?.toString() || "";
-      } else {
-        formData[fc.key] = (node.metadata_json || {})[fc.key] || "";
-      }
-    }
-    setForm(formData);
+      name: node.name, name_ar: node.name_ar || "", description: node.description || "",
+      description_ar: node.description_ar || "", guidance: node.guidance || "",
+      guidance_ar: node.guidance_ar || "", is_assessable: node.is_assessable,
+      weight: node.weight?.toString() || "", max_score: node.max_score?.toString() || "",
+      assessment_type: node.assessment_type || "", maturity_level: node.maturity_level?.toString() || "", evidence_type: node.evidence_type || "",
+      acceptance_criteria: node.acceptance_criteria || "", acceptance_criteria_en: node.acceptance_criteria_en || "",
+      spec_references: node.spec_references || "", priority: node.priority || "",
+    });
     const parent = node.parent_id ? nodeMap[node.parent_id] : null;
     setParentBreadcrumb(parent ? `${parent.name}${parent.reference_code ? ` (${parent.reference_code})` : ""}` : "");
     setError("");
@@ -525,7 +479,6 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
                     <select value={form.node_type} onChange={(e) => {
                       const nt = (nodeTypes || []).find((t) => t.name === e.target.value);
                       setForm((f) => ({ ...f, node_type: e.target.value, is_assessable: nt?.is_assessable_default || f.is_assessable }));
-                      setActiveFormFields(nt?.node_form_fields || []);
                     }} className="kpmg-input">
                       <option value="">Select type...</option>
                       {(nodeTypes || []).map((nt) => <option key={nt.id} value={nt.name}>{nt.label}</option>)}
@@ -550,7 +503,7 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
                 </div>
               </div>
 
-              {/* Assessable toggle */}
+              {/* Assessable section */}
               <div className="mt-5 pt-5 border-t border-kpmg-border">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input type="checkbox" checked={form.is_assessable}
@@ -559,84 +512,62 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
                   <span className="text-sm font-heading font-semibold text-kpmg-navy">Assessable node</span>
                   <span className="text-xs text-kpmg-placeholder font-body">— consultants will score this node during assessments</span>
                 </label>
-              </div>
-
-              {/* Dynamic fields from node_form_fields config */}
-              {(() => {
-                const DESCRIPTION_KEYS = new Set(["description", "description_ar", "guidance", "guidance_ar"]);
-                const allFields = activeFormFields.length > 0
-                  ? activeFormFields.filter(f => f.visible).sort((a, b) => a.sort_order - b.sort_order)
-                  : KNOWN_OPTIONAL_FIELDS;
-                // Description/guidance fields show always; assessment fields only when assessable
-                const fields = allFields.filter(f => DESCRIPTION_KEYS.has(f.key) || form.is_assessable);
-                if (fields.length === 0) return null;
-                return (
-                  <div className="mt-4 space-y-4">
-                    {/* Render fields in a responsive grid */}
+                {form.is_assessable && (
+                  <div className="space-y-4 mt-3">
+                    <div className="grid grid-cols-5 gap-4">
+                      <div>
+                        <label className="kpmg-label">Assessment Type</label>
+                        <select value={form.assessment_type} onChange={(e) => setForm((f) => ({ ...f, assessment_type: e.target.value }))} className="kpmg-input">
+                          <option value="">—</option>
+                          <option value="maturity">نضج (Maturity)</option>
+                          <option value="compliance">امتثال (Compliance)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="kpmg-label">Weight</label>
+                        <input type="number" step="0.01" value={form.weight} onChange={(e) => setForm((f) => ({ ...f, weight: e.target.value }))} className="kpmg-input" placeholder="1.0" />
+                      </div>
+                      <div>
+                        <label className="kpmg-label">Max Score</label>
+                        <input type="number" step="0.01" value={form.max_score} onChange={(e) => setForm((f) => ({ ...f, max_score: e.target.value }))} className="kpmg-input" placeholder="5.0" />
+                      </div>
+                      <div>
+                        <label className="kpmg-label">Maturity Level</label>
+                        <select value={form.maturity_level} onChange={(e) => setForm((f) => ({ ...f, maturity_level: e.target.value }))} className="kpmg-input">
+                          <option value="">—</option>
+                          <option value="0">L0</option><option value="1">L1</option><option value="2">L2</option>
+                          <option value="3">L3</option><option value="4">L4</option><option value="5">L5</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="kpmg-label">Priority</label>
+                        <select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))} className="kpmg-input">
+                          <option value="">—</option>
+                          <option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="kpmg-label">Evidence Type</label>
+                      <input type="text" value={form.evidence_type} onChange={(e) => setForm((f) => ({ ...f, evidence_type: e.target.value }))} className="kpmg-input" placeholder="Expected document/evidence format..." />
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
-                      {fields.map((fc) => {
-                        const isArabic = fc.key.endsWith("_ar") || fc.key === "acceptance_criteria";
-                        const val = form[fc.key] ?? "";
-                        const onChange = (v: string) => setForm((f: any) => ({ ...f, [fc.key]: v }));
-
-                        if (fc.type === "textarea") {
-                          return (
-                            <div key={fc.key} className="col-span-1">
-                              <label className="kpmg-label">{fc.label}{fc.required && <span className="text-status-error"> *</span>}</label>
-                              <textarea value={val} onChange={(e) => onChange(e.target.value)} rows={3}
-                                className={`kpmg-input resize-y ${isArabic ? "text-right font-arabic" : ""}`}
-                                dir={isArabic ? "rtl" : "ltr"} />
-                            </div>
-                          );
-                        }
-                        if (fc.type === "select") {
-                          return (
-                            <div key={fc.key} className="col-span-1">
-                              <label className="kpmg-label">{fc.label}{fc.required && <span className="text-status-error"> *</span>}</label>
-                              <select value={val} onChange={(e) => onChange(e.target.value)} className="kpmg-input">
-                                <option value="">—</option>
-                                {(fc.options || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                              </select>
-                            </div>
-                          );
-                        }
-                        if (fc.type === "number") {
-                          return (
-                            <div key={fc.key} className="col-span-1">
-                              <label className="kpmg-label">{fc.label}{fc.required && <span className="text-status-error"> *</span>}</label>
-                              <input type="number" step="0.01" value={val} onChange={(e) => onChange(e.target.value)} className="kpmg-input" />
-                            </div>
-                          );
-                        }
-                        if (fc.type === "attachment") {
-                          return (
-                            <div key={fc.key} className="col-span-2">
-                              <label className="kpmg-label">{fc.label}{fc.required && <span className="text-status-error"> *</span>}</label>
-                              <label className="flex items-center gap-2 px-4 py-3 border-2 border-dashed border-kpmg-border rounded-btn cursor-pointer hover:border-kpmg-light hover:bg-kpmg-light/5 transition">
-                                <Upload className="w-4 h-4 text-kpmg-placeholder" />
-                                <span className="text-xs text-kpmg-placeholder">{val ? String(val) : "Click to attach a file..."}</span>
-                                <input type="file" className="hidden" onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) onChange(file.name);
-                                }} />
-                              </label>
-                            </div>
-                          );
-                        }
-                        // Default: text
-                        return (
-                          <div key={fc.key} className="col-span-1">
-                            <label className="kpmg-label">{fc.label}{fc.required && <span className="text-status-error"> *</span>}</label>
-                            <input type="text" value={val} onChange={(e) => onChange(e.target.value)}
-                              className={`kpmg-input ${isArabic ? "text-right font-arabic" : ""}`}
-                              dir={isArabic ? "rtl" : "ltr"} />
-                          </div>
-                        );
-                      })}
+                      <div>
+                        <label className="kpmg-label">Acceptance Criteria (English)</label>
+                        <textarea value={form.acceptance_criteria_en} onChange={(e) => setForm((f) => ({ ...f, acceptance_criteria_en: e.target.value }))} rows={4} className="kpmg-input resize-y" placeholder="What must the evidence contain to be accepted..." />
+                      </div>
+                      <div>
+                        <label className="kpmg-label">Acceptance Criteria (Arabic)</label>
+                        <textarea dir="rtl" value={form.acceptance_criteria} onChange={(e) => setForm((f) => ({ ...f, acceptance_criteria: e.target.value }))} rows={4} className="kpmg-input resize-y text-right" placeholder="معايير القبول..." />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="kpmg-label">Spec References</label>
+                      <input type="text" value={form.spec_references} onChange={(e) => setForm((f) => ({ ...f, spec_references: e.target.value }))} className="kpmg-input" placeholder="e.g. OD.C.1.1, OD.C.2.1" />
                     </div>
                   </div>
-                );
-              })()}
+                )}
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border">
@@ -666,149 +597,34 @@ export default function HierarchyBuilderPage({ params }: { params: Promise<{ fra
           } catch (e: any) { toast(e.message || "Import failed", "error"); } finally { setImporting(false); setImportPreview(null); setImportFile(null); }
         }} />
 
-      {/* Node Type Edit Modal — includes field configuration */}
+      {/* Node Type Edit Modal */}
       {editingNodeType && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setEditingNodeType(null)}>
-          <div className="bg-white rounded-card shadow-2xl w-full max-w-2xl animate-fade-in-up max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border shrink-0">
-              <h3 className="text-lg font-heading font-bold text-kpmg-navy">Configure Level: {editingNodeType.label}</h3>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-sm animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border">
+              <h3 className="text-lg font-heading font-bold text-kpmg-navy">Edit Level Name</h3>
               <button onClick={() => setEditingNodeType(null)} className="p-1 text-kpmg-placeholder hover:text-kpmg-gray"><X className="w-5 h-5" /></button>
             </div>
-            <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
-              {/* Basic settings */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="kpmg-label">Display Label *</label>
-                  <input type="text" value={ntForm.label} onChange={(e) => setNtForm(f => ({ ...f, label: e.target.value }))} className="kpmg-input" placeholder="e.g. Domain" />
-                </div>
-                <div>
-                  <label className="kpmg-label">Internal Name *</label>
-                  <input type="text" value={ntForm.name} onChange={(e) => setNtForm(f => ({ ...f, name: e.target.value }))} className="kpmg-input font-mono" placeholder="e.g. Domain" />
-                </div>
-                <div>
-                  <label className="kpmg-label">Color</label>
-                  <div className="flex items-center gap-2">
-                    <input type="color" value={ntForm.color} onChange={(e) => setNtForm(f => ({ ...f, color: e.target.value }))} className="w-10 h-10 rounded border border-kpmg-border cursor-pointer" />
-                    <input type="text" value={ntForm.color} onChange={(e) => setNtForm(f => ({ ...f, color: e.target.value }))} className="kpmg-input flex-1 font-mono text-xs" />
-                  </div>
-                </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="kpmg-label">Display Label *</label>
+                <input type="text" value={ntForm.label} onChange={(e) => setNtForm(f => ({ ...f, label: e.target.value }))} className="kpmg-input" placeholder="e.g. Domain, Pillar, Axis" />
+                <p className="text-[10px] text-kpmg-placeholder mt-1">This is what users see in the hierarchy and KPI cards</p>
               </div>
-
-              {/* Form Fields Configuration */}
-              <div className="border-t border-kpmg-border pt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h4 className="text-sm font-heading font-bold text-kpmg-navy">Node Edit Form Fields</h4>
-                    <p className="text-[10px] text-kpmg-placeholder">Configure which fields appear when editing nodes of this type. Drag to reorder.</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-kpmg-placeholder">{ntForm.node_form_fields.filter(f => f.visible).length} of {ntForm.node_form_fields.length} enabled</span>
-                    <button type="button" onClick={() => {
-                      const key = prompt("Field key (lowercase, no spaces, e.g. custom_notes):");
-                      if (!key || ntForm.node_form_fields.some(f => f.key === key)) { if (key) alert("Key already exists"); return; }
-                      const label = prompt("Field label (English):") || key;
-                      const labelAr = prompt("Field label (Arabic, optional):") || "";
-                      const type = (prompt("Field type (text, textarea, number, select, attachment):") || "text") as any;
-                      setNtForm(f => ({ ...f, node_form_fields: [...f.node_form_fields, { key, label, label_ar: labelAr || undefined, type, required: false, visible: true, sort_order: f.node_form_fields.length }] }));
-                    }} className="kpmg-btn-ghost text-[10px] px-2 py-1 flex items-center gap-1">
-                      <Plus className="w-3 h-3" /> Add Field
-                    </button>
-                  </div>
+              <div>
+                <label className="kpmg-label">Internal Name *</label>
+                <input type="text" value={ntForm.name} onChange={(e) => setNtForm(f => ({ ...f, name: e.target.value }))} className="kpmg-input font-mono" placeholder="e.g. Domain, Question" />
+                <p className="text-[10px] text-kpmg-placeholder mt-1">Used for data mapping and node type references</p>
+              </div>
+              <div>
+                <label className="kpmg-label">Color</label>
+                <div className="flex items-center gap-3">
+                  <input type="color" value={ntForm.color} onChange={(e) => setNtForm(f => ({ ...f, color: e.target.value }))} className="w-10 h-10 rounded border border-kpmg-border cursor-pointer" />
+                  <input type="text" value={ntForm.color} onChange={(e) => setNtForm(f => ({ ...f, color: e.target.value }))} className="kpmg-input flex-1 font-mono" placeholder="#00338D" />
                 </div>
-                <div className="space-y-1">
-                  {ntForm.node_form_fields.map((field, idx) => (
-                    <div key={field.key} className={`flex items-center gap-2 px-3 py-2 rounded-btn transition ${field.visible ? "bg-kpmg-light/5 border border-kpmg-light/20" : "bg-kpmg-light-gray/50 border border-transparent opacity-60"}`}>
-                      {/* Visibility toggle */}
-                      <input
-                        type="checkbox"
-                        checked={field.visible}
-                        onChange={(e) => {
-                          const updated = [...ntForm.node_form_fields];
-                          updated[idx] = { ...updated[idx], visible: e.target.checked };
-                          setNtForm(f => ({ ...f, node_form_fields: updated }));
-                        }}
-                        className="w-4 h-4 rounded border-kpmg-input-border text-kpmg-blue cursor-pointer shrink-0"
-                      />
-                      {/* Reorder buttons */}
-                      <div className="flex flex-col shrink-0">
-                        <button type="button" disabled={idx === 0} onClick={() => {
-                          const updated = [...ntForm.node_form_fields];
-                          [updated[idx - 1], updated[idx]] = [updated[idx], updated[idx - 1]];
-                          updated.forEach((f, i) => f.sort_order = i);
-                          setNtForm(f => ({ ...f, node_form_fields: updated }));
-                        }} className="text-kpmg-placeholder hover:text-kpmg-navy disabled:opacity-20 text-[9px] leading-none">&#9650;</button>
-                        <button type="button" disabled={idx === ntForm.node_form_fields.length - 1} onClick={() => {
-                          const updated = [...ntForm.node_form_fields];
-                          [updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]];
-                          updated.forEach((f, i) => f.sort_order = i);
-                          setNtForm(f => ({ ...f, node_form_fields: updated }));
-                        }} className="text-kpmg-placeholder hover:text-kpmg-navy disabled:opacity-20 text-[9px] leading-none">&#9660;</button>
-                      </div>
-                      {/* Editable label */}
-                      <input
-                        type="text"
-                        value={field.label}
-                        onChange={(e) => {
-                          const updated = [...ntForm.node_form_fields];
-                          updated[idx] = { ...updated[idx], label: e.target.value };
-                          setNtForm(f => ({ ...f, node_form_fields: updated }));
-                        }}
-                        className="kpmg-input py-1 text-xs font-semibold flex-1 min-w-0"
-                        title="Edit label (English)"
-                      />
-                      <input
-                        type="text"
-                        value={field.label_ar || ""}
-                        onChange={(e) => {
-                          const updated = [...ntForm.node_form_fields];
-                          updated[idx] = { ...updated[idx], label_ar: e.target.value };
-                          setNtForm(f => ({ ...f, node_form_fields: updated }));
-                        }}
-                        dir="rtl"
-                        className="kpmg-input py-1 text-xs font-arabic text-right w-28"
-                        placeholder="عربي"
-                        title="Edit label (Arabic)"
-                      />
-                      {/* Type selector */}
-                      <select
-                        value={field.type}
-                        onChange={(e) => {
-                          const updated = [...ntForm.node_form_fields];
-                          updated[idx] = { ...updated[idx], type: e.target.value as any };
-                          setNtForm(f => ({ ...f, node_form_fields: updated }));
-                        }}
-                        className="kpmg-input py-1 text-[10px] w-20 shrink-0"
-                      >
-                        <option value="text">text</option>
-                        <option value="textarea">textarea</option>
-                        <option value="number">number</option>
-                        <option value="select">select</option>
-                        <option value="attachment">attachment</option>
-                      </select>
-                      {/* Required toggle */}
-                      <label className="flex items-center gap-1 shrink-0 cursor-pointer">
-                        <input type="checkbox" checked={field.required} onChange={(e) => {
-                          const updated = [...ntForm.node_form_fields];
-                          updated[idx] = { ...updated[idx], required: e.target.checked };
-                          setNtForm(f => ({ ...f, node_form_fields: updated }));
-                        }} className="w-3 h-3 rounded" disabled={!field.visible} />
-                        <span className="text-[9px] text-kpmg-placeholder">Req</span>
-                      </label>
-                      {/* Delete button (only for custom fields not in KNOWN_KEYS) */}
-                      {!KNOWN_KEYS.has(field.key) && (
-                        <button type="button" onClick={() => {
-                          setNtForm(f => ({ ...f, node_form_fields: f.node_form_fields.filter((_, i) => i !== idx) }));
-                        }} className="p-1 text-kpmg-placeholder hover:text-status-error shrink-0" title="Remove custom field">
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[9px] text-kpmg-placeholder mt-2">Core fields (Node Type, Reference Code, Name EN/AR, Assessable) are always shown. Custom fields are stored in metadata.</p>
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border shrink-0">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border">
               <button onClick={() => setEditingNodeType(null)} className="kpmg-btn-secondary text-sm px-5 py-2.5">Cancel</button>
               <button onClick={saveNodeType} disabled={!ntForm.label || !ntForm.name} className="kpmg-btn-primary text-sm px-5 py-2.5 flex items-center gap-1.5">
                 <Save className="w-4 h-4" /> Save
