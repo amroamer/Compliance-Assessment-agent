@@ -24,12 +24,13 @@ router = APIRouter(tags=["hierarchy"])
 class NodeTypeResponse(BaseModel):
     id: uuid.UUID; framework_id: uuid.UUID; name: str; label: str
     color: str | None = None; icon: str | None = None; sort_order: int
-    is_assessable_default: bool
+    is_assessable_default: bool; node_form_fields: list | None = None
     model_config = {"from_attributes": True}
 
 class NodeTypeCreate(BaseModel):
     name: str; label: str; color: str | None = None; icon: str | None = None
     sort_order: int = 0; is_assessable_default: bool = False
+    node_form_fields: list | None = None
 
 class NodeCreate(BaseModel):
     parent_id: uuid.UUID | None = None; node_type: str; reference_code: str | None = None
@@ -40,6 +41,7 @@ class NodeCreate(BaseModel):
     maturity_level: int | None = None; evidence_type: str | None = None
     acceptance_criteria: str | None = None; acceptance_criteria_en: str | None = None
     spec_references: str | None = None; priority: str | None = None
+    metadata_json: dict | None = None
 
 class NodeUpdate(BaseModel):
     parent_id: uuid.UUID | None = None; node_type: str | None = None
@@ -51,6 +53,7 @@ class NodeUpdate(BaseModel):
     maturity_level: int | None = None; evidence_type: str | None = None
     acceptance_criteria: str | None = None; acceptance_criteria_en: str | None = None
     spec_references: str | None = None; priority: str | None = None
+    metadata_json: dict | None = None
 
 class ReorderRequest(BaseModel):
     parent_id: uuid.UUID | None = None; node_ids: list[uuid.UUID]
@@ -66,6 +69,7 @@ class NodeResponse(BaseModel):
     maturity_level: int | None = None; evidence_type: str | None = None
     acceptance_criteria: str | None = None; acceptance_criteria_en: str | None = None
     spec_references: str | None = None; priority: str | None = None
+    metadata_json: dict | None = None
     created_at: str; updated_at: str
 
 
@@ -82,6 +86,7 @@ def _node_response(n: FrameworkNode, children_count: int = 0) -> NodeResponse:
         assessment_type=n.assessment_type, maturity_level=n.maturity_level, evidence_type=n.evidence_type,
         acceptance_criteria=n.acceptance_criteria, acceptance_criteria_en=n.acceptance_criteria_en,
         spec_references=n.spec_references, priority=n.priority,
+        metadata_json=n.metadata_json,
         children_count=children_count,
         created_at=n.created_at.isoformat() if n.created_at else "",
         updated_at=n.updated_at.isoformat() if n.updated_at else "",
@@ -205,6 +210,10 @@ async def create_node(fw_id: uuid.UUID, data: NodeCreate, db: AsyncSession = Dep
         is_assessable=data.is_assessable,
         weight=Decimal(str(data.weight)) if data.weight is not None else None,
         max_score=Decimal(str(data.max_score)) if data.max_score is not None else None,
+        assessment_type=data.assessment_type, maturity_level=data.maturity_level,
+        evidence_type=data.evidence_type, acceptance_criteria=data.acceptance_criteria,
+        acceptance_criteria_en=data.acceptance_criteria_en, spec_references=data.spec_references,
+        priority=data.priority, metadata_json=data.metadata_json,
     )
     db.add(node)
     await db.flush()
@@ -237,6 +246,11 @@ async def update_node(fw_id: uuid.UUID, node_id: uuid.UUID, data: NodeUpdate, db
     for k, v in updates.items():
         if k in ("weight", "max_score") and v is not None:
             setattr(node, k, Decimal(str(v)))
+        elif k == "metadata_json" and v is not None:
+            # Merge custom fields into existing metadata
+            existing_meta = node.metadata_json or {}
+            existing_meta.update(v)
+            node.metadata_json = existing_meta
         elif k not in ("parent_id",):
             setattr(node, k, v)
 
