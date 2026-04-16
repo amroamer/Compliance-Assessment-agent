@@ -11,33 +11,31 @@ Before making any changes, identify:
 - The test command (npm test, pytest, mvn test, cargo test, go test, etc.)
 - List these at the start of every session so we are aligned.
 
-## Step 2: After Every Code Change
-1. **Build the project** using the detected build command. Fix all errors before moving on.
-2. **Run the linter** if one is configured (eslint, flake8, ruff, clippy, etc.). Fix warnings.
-3. **Run existing tests** if any exist. Fix failures before reporting done.
-4. **Start the application** and confirm it launches without crashing.
-5. If you created a new file, route, component, endpoint, or module — verify it is properly imported, registered, and reachable.
+## Step 2: After Code Changes
+1. **Build the project** when the user requests it or before reporting a feature as done.
+2. **Start the application** and confirm it launches without crashing when asked.
+3. If you created a new file, route, component, endpoint, or module — verify it is properly imported and registered.
 
 ## Step 3: Before Reporting Done
-1. Run `git diff --stat` and list every file you added or modified.
-2. Summarize what changed and why in plain language.
-3. Confirm build passes (exit code 0).
-4. Confirm the app starts cleanly (no stacktraces, no missing modules).
-5. If the task is UI-related, state which URL or screen the change appears on.
+1. Summarize what changed and why in plain language.
+2. If the task is UI-related, state which URL or screen the change appears on.
+
+## Optional (only when explicitly requested)
+- **Run tests:** Only run pytest when the user asks for it.
+- **Push to GitHub:** Only commit and push when the user explicitly requests it.
+- **Run linter:** Only when requested.
 
 ## Do NOT
-- Skip the build or test step for any reason.
+- Push to GitHub without being asked.
+- Run unit tests automatically — only when requested.
 - Assume an import, dependency, or config change works without running it.
 - Leave dead code, unused imports, or commented-out blocks.
 - Say "this should work" — either verify it does or say you could not verify and explain why.
-- Make changes to multiple files without building after each logical chunk.
-- Ignore warnings — treat them as errors unless I explicitly say otherwise.
 
 ## If Something Breaks
 - Stop immediately. Do not keep making more changes on top of broken code.
 - Show the full error output.
 - Diagnose the root cause before attempting a fix.
-- After fixing, re-run the full build + test cycle from scratch.
 
 ## General Standards
 - Keep changes minimal and focused. One task = one logical change.
@@ -164,45 +162,11 @@ cat backups/backup.sql | docker exec -i ai-badges-db-1 psql -U aibadges -d aibad
 
 ---
 
-## Unit Testing Rules
+## Unit Testing (Optional — only when requested)
 
-### When to Write Tests
-- Every new function, method, endpoint, or component MUST have at least one unit test.
-- Every bug fix MUST include a regression test that reproduces the bug before the fix.
-- If modifying existing code that has no tests, write tests for the modified code before changing it.
+Tests use pytest with httpx, running against the live Docker app on port 8000. Test files are in `backend/tests/`. Currently 248 tests across 23 files.
 
-### Test Structure
-- Detect the project's existing test framework before writing tests:
-  - JavaScript/TypeScript: check for jest, vitest, mocha, or playwright in package.json
-  - Python: check for pytest, unittest, or nose in requirements.txt / pyproject.toml
-  - Java/Kotlin: check for JUnit or TestNG in pom.xml / build.gradle
-  - Go: use the built-in testing package
-  - Rust: use the built-in #[test] module
-  - If no test framework exists, recommend one and install it after my approval.
-
-- Follow the existing test file naming and location conventions in the project.
-  - If none exist, use: `tests/` or `__tests__/` directory, mirroring the source structure.
-
-### What Every Test Must Cover
-1. **Happy path** — the function works correctly with valid input.
-2. **Edge cases** — empty inputs, nulls, boundary values, large inputs.
-3. **Error handling** — invalid inputs throw or return the expected error.
-
-### Test Quality Standards
-- Each test must have a clear, descriptive name that explains what it verifies.
-  - Good: `test_login_fails_with_expired_token`
-  - Bad: `test1`, `testLogin`, `it works`
-- Tests must be independent — no test should depend on another test's output.
-- No hardcoded secrets, API keys, or external service calls in tests. Use mocks.
-- Tests must run fast. Mock external dependencies (APIs, databases, file system).
-
-### After Writing Tests
-1. Run the full test suite — all tests must pass, not just the new ones.
-2. If any existing test breaks, fix the code or the test before reporting done.
-3. Report test results: number of tests run, passed, failed.
-
-### Do NOT
-- Write tests that always pass regardless of implementation (e.g., `expect(true).toBe(true)`).
-- Skip writing tests because "the function is simple."
-- Mock the thing you are testing — only mock its dependencies.
-- Write tests after reporting done. Tests are part of the task, not an afterthought.
+When writing tests (if asked):
+- Use UUID-suffix names to avoid collisions
+- Follow the existing conftest.py fixtures (http, base_url, admin_headers)
+- Use descriptive test names (e.g., `test_login_fails_with_expired_token`)

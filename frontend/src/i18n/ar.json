@@ -43,13 +43,22 @@
     "entities": "الجهات الحكومية",
     "workload": "أعباء العمل",
     "assessments": "التقييمات",
+    "entityProfiles": "ملفات الجهات",
     "assessedEntities": "الجهات المقيّمة",
-    "entitiesList": "الجهات المقيّمة",
     "llmModels": "نماذج الذكاء الاصطناعي",
     "users": "المستخدمون",
     "cycleSettings": "دورات التقييم",
+    "phaseTemplates": "قوالب المراحل",
     "regEntities": "الجهات التنظيمية",
-    "frameworks": "الأطر التنظيمية"
+    "frameworks": "الأطر التنظيمية",
+    "departments": "الأقسام"
+  },
+  "sidebar": {
+    "overview": "نظرة عامة",
+    "assessments": "التقييمات",
+    "configuration": "الإعدادات",
+    "dataManagement": "إدارة البيانات",
+    "system": "النظام"
   },
   "dashboard": {
     "welcome": "مرحباً بعودتك",

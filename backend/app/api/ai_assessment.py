@@ -302,14 +302,25 @@ async def accept_suggestion(inst_id: uuid.UUID, node_id: uuid.UUID, data: Accept
     rd["recommendation"] = suggestion.get("recommendations", "")
     rd["compliance_status"] = suggestion.get("compliance_status", "")
     rd["ai_assessment"] = suggestion
-    # Store document verification as top-level fields
+    # Store document verification as human-readable status strings
     doc_analysis = suggestion.get("document_analysis", [])
     if doc_analysis:
-        rd["doc_approved"] = all(d.get("is_approved", False) for d in doc_analysis)
-        rd["doc_signed"] = all(d.get("has_signature", False) for d in doc_analysis)
+        all_approved = all(d.get("is_approved", False) for d in doc_analysis)
+        rd["doc_approved"] = "Approved" if all_approved else "Not Approved"
+        all_signed = all(d.get("has_signature", False) for d in doc_analysis)
+        rd["doc_signed"] = "Signed" if all_signed else "No Signature"
+        has_date = any(d.get("document_date") for d in doc_analysis)
+        if has_date:
+            dates = [d.get("document_date") for d in doc_analysis if d.get("document_date")]
+            rd["doc_date_check"] = "Valid Date"
+            # Store the actual date for reference
+            rd["doc_date_value"] = dates[0] if dates else None
+        else:
+            rd["doc_date_check"] = "No Date"
     else:
-        rd["doc_approved"] = None
-        rd["doc_signed"] = None
+        rd["doc_approved"] = "Not Checked"
+        rd["doc_signed"] = "Not Checked"
+        rd["doc_date_check"] = "Not Checked"
     resp.response_data = rd
     resp.status = "draft"
     resp.computed_score_label = suggestion.get("compliance_status")

@@ -21,6 +21,7 @@ class NodeType(Base):
     icon: Mapped[str | None] = mapped_column(String(50), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     is_assessable_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    node_form_fields: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
 
 class FrameworkNode(Base):

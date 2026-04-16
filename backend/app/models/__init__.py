@@ -21,6 +21,10 @@ from app.models.assessment_engine import (
 from app.models.llm_model import LlmModel
 from app.models.ai_assessment_log import AiAssessmentLog
 from app.models.framework_document import FrameworkDocument
+from app.models.cycle_phase import AssessmentCyclePhase, AssessmentPhaseLog
+from app.models.department import EntityDepartment, EntityDepartmentUser, NodeAssignment
+from app.models.phase_template import PhaseTemplate
+from app.models.regulator_feedback import RegulatorFeedback, RegulatorEvidence
 
 __all__ = [
     "User",
@@ -53,4 +57,8 @@ __all__ = [
     "LlmModel",
     "AiAssessmentLog",
     "FrameworkDocument",
+    "AssessmentCyclePhase", "AssessmentPhaseLog",
+    "EntityDepartment", "EntityDepartmentUser", "NodeAssignment",
+    "PhaseTemplate",
+    "RegulatorFeedback", "RegulatorEvidence",
 ]

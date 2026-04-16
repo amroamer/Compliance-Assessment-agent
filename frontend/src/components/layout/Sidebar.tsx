@@ -17,36 +17,46 @@ import {
   Settings,
   BookOpen,
   ClipboardCheck,
+  Layers,
+  Database,
+  Landmark,
+  UserCog,
 } from "lucide-react";
 
 const navSections = [
   {
-    label: "OVERVIEW",
+    labelKey: "sidebar.overview",
     items: [
       { href: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard, roles: ["admin", "kpmg_user", "client"] },
     ],
   },
   {
-    label: "ASSESSMENTS",
+    labelKey: "sidebar.assessments",
     items: [
       { href: "/assessments", labelKey: "nav.assessments", icon: ClipboardCheck, roles: ["admin", "kpmg_user", "client"] },
-      { href: "/entities", labelKey: "nav.entitiesList", icon: Building2, roles: ["admin", "kpmg_user"] },
+      { href: "/entities", labelKey: "nav.entityProfiles", icon: Building2, roles: ["admin", "kpmg_user"] },
     ],
   },
   {
-    label: "CONFIGURATION",
+    labelKey: "sidebar.configuration",
     items: [
       { href: "/settings/frameworks", labelKey: "nav.frameworks", icon: BookOpen, roles: ["admin"] },
       { href: "/settings/assessment-cycles", labelKey: "nav.cycleSettings", icon: Settings, roles: ["admin"] },
-      { href: "/settings/regulatory-entities", labelKey: "nav.regEntities", icon: Building2, roles: ["admin"] },
+      { href: "/settings/phase-templates", labelKey: "nav.phaseTemplates", icon: Layers, roles: ["admin"] },
     ],
   },
   {
-    label: "ADMINISTRATION",
+    labelKey: "sidebar.dataManagement",
     items: [
       { href: "/settings/assessed-entities", labelKey: "nav.assessedEntities", icon: Target, roles: ["admin"] },
+      { href: "/settings/regulatory-entities", labelKey: "nav.regEntities", icon: Landmark, roles: ["admin"] },
+    ],
+  },
+  {
+    labelKey: "sidebar.system",
+    items: [
+      { href: "/users", labelKey: "nav.users", icon: UserCog, roles: ["admin"] },
       { href: "/settings/llm-models", labelKey: "nav.llmModels", icon: Zap, roles: ["admin"] },
-      { href: "/users", labelKey: "nav.users", icon: Users, roles: ["admin"] },
     ],
   },
 ];
@@ -81,9 +91,9 @@ export function Sidebar() {
           );
           if (!visibleItems.length) return null;
           return (
-            <div key={section.label} className="mb-5">
+            <div key={section.labelKey} className="mb-5">
               <p className="px-3 mb-2 text-[11px] font-semibold text-white/40 tracking-widest uppercase">
-                {section.label}
+                {t(section.labelKey)}
               </p>
               <div className="space-y-0.5">
                 {visibleItems.map((item) => {

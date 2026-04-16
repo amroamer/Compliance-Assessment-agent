@@ -7,7 +7,7 @@ import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import {
   Building2, Plus, Edit, Search, ExternalLink, X, Save,
-  CheckCircle, Circle, Ban, Trash2, Download, Upload,
+  Circle, Ban, Trash2, Download, Upload,
 } from "lucide-react";
 import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
 import { useConfirm } from "@/components/ui/ConfirmModal";
@@ -30,7 +30,6 @@ const FW_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   QIYAS: { bg: "bg-[#27AE60]", text: "text-white", label: "Qiyas" },
 };
 
-const ALL_FRAMEWORKS = ["NDI", "NAII", "AI_BADGES", "QIYAS"];
 
 interface FormData {
   name: string;
@@ -39,10 +38,9 @@ interface FormData {
   description: string;
   website: string;
   status: string;
-  frameworks: string[];
 }
 
-const EMPTY_FORM: FormData = { name: "", name_ar: "", abbreviation: "", description: "", website: "", status: "Active", frameworks: [] };
+const EMPTY_FORM: FormData = { name: "", name_ar: "", abbreviation: "", description: "", website: "", status: "Active" };
 
 export default function RegulatoryEntitiesPage() {
   const queryClient = useQueryClient();
@@ -90,14 +88,6 @@ export default function RegulatoryEntitiesPage() {
       setSelectedIds(new Set((entities ?? []).map((e) => e.id)));
     }
   };
-
-  // Build a map of which frameworks are taken by which entity (for greying out in modal)
-  const frameworkOwnerMap: Record<string, string> = {};
-  (entities || []).forEach((e) => {
-    e.frameworks.forEach((fw) => {
-      if (e.id !== editingId) frameworkOwnerMap[fw] = e.abbreviation;
-    });
-  });
 
   const saveMutation = useMutation({
     mutationFn: (data: FormData) => {
@@ -205,19 +195,9 @@ export default function RegulatoryEntitiesPage() {
       description: entity.description || "",
       website: entity.website || "",
       status: entity.status,
-      frameworks: entity.frameworks,
     });
     setError("");
     setModalOpen(true);
-  };
-
-  const toggleFramework = (fw: string) => {
-    setForm((f) => ({
-      ...f,
-      frameworks: f.frameworks.includes(fw)
-        ? f.frameworks.filter((x) => x !== fw)
-        : [...f.frameworks, fw],
-    }));
   };
 
   const StatusBadge = ({ status }: { status: string }) => {
@@ -485,47 +465,6 @@ export default function RegulatoryEntitiesPage() {
                 </div>
               </div>
 
-              {/* Frameworks Multi-Select */}
-              <div>
-                <label className="kpmg-label">Owned Frameworks</label>
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  {ALL_FRAMEWORKS.map((fw) => {
-                    const isSelected = form.frameworks.includes(fw);
-                    const takenBy = frameworkOwnerMap[fw];
-                    const isDisabled = !!takenBy;
-                    const meta = FW_COLORS[fw];
-                    return (
-                      <button
-                        key={fw}
-                        type="button"
-                        onClick={() => !isDisabled && toggleFramework(fw)}
-                        disabled={isDisabled}
-                        className={`flex items-center gap-3 p-3 rounded-btn border-2 text-left transition-all duration-200 ${
-                          isSelected
-                            ? "border-kpmg-light bg-kpmg-light/5"
-                            : isDisabled
-                            ? "border-kpmg-border bg-kpmg-light-gray opacity-60 cursor-not-allowed"
-                            : "border-kpmg-border hover:border-kpmg-light/40"
-                        }`}
-                      >
-                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
-                          isSelected ? "bg-kpmg-light border-kpmg-light" : "border-kpmg-input-border"
-                        }`}>
-                          {isSelected && <CheckCircle className="w-3 h-3 text-white" />}
-                        </div>
-                        <div>
-                          <span className={`${meta?.bg} ${meta?.text} text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded`}>
-                            {meta?.label || fw}
-                          </span>
-                          {isDisabled && (
-                            <p className="text-[10px] text-kpmg-placeholder mt-0.5">Owned by {takenBy}</p>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
             </div>
 
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border">

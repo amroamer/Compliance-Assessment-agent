@@ -228,6 +228,7 @@ class AssessmentInstance(Base):
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     review_comments: Mapped[str | None] = mapped_column(Text, nullable=True)
+    current_phase_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("assessment_cycle_phases.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -235,6 +236,7 @@ class AssessmentInstance(Base):
     framework = relationship("ComplianceFramework", lazy="selectin")
     assessed_entity = relationship("AssessedEntity", lazy="selectin")
     ai_product = relationship("AiProduct", lazy="selectin")
+    current_phase = relationship("AssessmentCyclePhase", lazy="selectin")
 
 
 class AssessmentResponse(Base):

@@ -382,10 +382,86 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
     );
   };
 
+  // Phase permissions
+  const phase = instance?.current_phase;
+  const phasePerms = {
+    canEdit: phase ? (phase.allows_data_entry || phase.allows_corrections) : true,
+    canUpload: phase ? phase.allows_evidence_upload : true,
+    canSubmit: phase ? phase.allows_submission : true,
+    canReview: phase ? phase.allows_review : true,
+    isLocked: phase ? phase.is_read_only : false,
+  };
+  const allPhases = instance?.all_phases || [];
+  const currentPhaseIdx = allPhases.findIndex((p: any) => p.is_current);
+  const nextPhase = currentPhaseIdx >= 0 && currentPhaseIdx < allPhases.length - 1 ? allPhases[currentPhaseIdx + 1] : null;
+  const isAdmin = user?.role === "admin" || user?.role === "kpmg_user";
+
   return (
     <div>
       <Header title={instance ? `${instance.assessed_entity?.name} — ${instance.framework?.abbreviation}` : "Assessment"} />
-      <div className="flex h-[calc(100vh-64px)]">
+
+      {/* Phase Stepper + Banner */}
+      {allPhases.length > 0 && (
+        <div className="bg-white border-b border-kpmg-border px-6 py-3">
+          {/* Stepper */}
+          <div className="flex items-center justify-between max-w-4xl mx-auto">
+            {allPhases.map((p: any, idx: number) => {
+              const isCompleted = idx < currentPhaseIdx;
+              const isCurrent = idx === currentPhaseIdx;
+              const isUpcoming = idx > currentPhaseIdx;
+              const actorColors: Record<string, string> = { assessed_entity: "bg-kpmg-blue/10 text-kpmg-blue", regulator: "bg-status-warning/10 text-status-warning", kpmg: "bg-kpmg-purple/10 text-kpmg-purple" };
+              return (
+                <div key={p.id} className="flex items-center flex-1">
+                  <div className="flex flex-col items-center min-w-0">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${isCompleted ? "bg-status-success text-white" : isCurrent ? "bg-kpmg-blue text-white ring-4 ring-kpmg-blue/20" : "bg-kpmg-light-gray text-kpmg-placeholder"}`}>
+                      {isCompleted ? "✓" : p.phase_number}
+                    </div>
+                    <span className={`text-[9px] mt-1 text-center leading-tight max-w-[80px] truncate ${isCurrent ? "font-bold text-kpmg-blue" : isCompleted ? "text-status-success" : "text-kpmg-placeholder"}`}>
+                      {p.name}
+                    </span>
+                    <span className={`text-[8px] mt-0.5 px-1.5 py-0.5 rounded-full ${actorColors[p.actor] || "bg-kpmg-light-gray text-kpmg-placeholder"}`}>
+                      {p.actor === "assessed_entity" ? "Entity" : p.actor === "regulator" ? "Regulator" : p.actor === "kpmg" ? "KPMG" : "All"}
+                    </span>
+                  </div>
+                  {idx < allPhases.length - 1 && (
+                    <div className={`flex-1 h-0.5 mx-2 ${idx < currentPhaseIdx ? "bg-status-success" : "bg-kpmg-border"}`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Phase Banner */}
+          {phase && (
+            <div className={`mt-3 px-4 py-2.5 rounded-btn flex items-center gap-3 text-sm ${phasePerms.isLocked || phase.actor === "regulator" ? "bg-status-warning/10 border border-status-warning/20 text-status-warning" : phase.actor === "assessed_entity" ? "bg-kpmg-blue/5 border border-kpmg-blue/20 text-kpmg-navy" : "bg-kpmg-light-gray border border-kpmg-border text-kpmg-gray"}`}>
+              <span className="text-base">{phasePerms.isLocked ? "🔒" : "📝"}</span>
+              <div className="flex-1 min-w-0">
+                <span className="font-heading font-bold text-xs">Phase {phase.phase_number}: {phase.name}</span>
+                {phase.banner_message && <p className="text-[11px] opacity-80 mt-0.5">{phase.banner_message}</p>}
+                {phasePerms.isLocked && <p className="text-[10px] font-semibold mt-0.5">Assessment is locked during this phase.</p>}
+              </div>
+              {/* Advance button */}
+              {isAdmin && nextPhase && (
+                <button
+                  onClick={async () => {
+                    if (!await confirm({ title: "Advance Phase", message: `Move from "${phase.name}" to "${nextPhase.name}"?`, variant: "warning", confirmLabel: "Advance" })) return;
+                    try {
+                      await api.post(`/assessments/${instanceId}/advance-phase`, {});
+                      queryClient.invalidateQueries({ queryKey: ["assessment", instanceId] });
+                      toast(`Advanced to: ${nextPhase.name}`, "success");
+                    } catch (err: any) { toast(err.message, "error"); }
+                  }}
+                  className="kpmg-btn-primary text-[10px] px-3 py-1.5 flex items-center gap-1 shrink-0 whitespace-nowrap"
+                >
+                  <ArrowRight className="w-3 h-3" /> Phase {nextPhase.phase_number}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex" style={{ height: allPhases.length > 0 ? "calc(100vh - 64px - 130px)" : "calc(100vh - 64px)" }}>
         {/* Left Panel — Tree */}
         <div className="w-[320px] shrink-0 border-r border-kpmg-border bg-white overflow-y-auto p-3">
           <div className="flex items-center justify-between mb-3">
@@ -630,17 +706,18 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
               {/* SECTION 1: Manual Input Fields (answer, scale_rating, compliance_check) */}
               {nodeResponse.template?.fields && (() => {
                 const isStatusLocked = nodeResponse.instance_status === "submitted" || nodeResponse.instance_status === "completed" || nodeResponse.instance_status === "archived";
-                const isLocked = isStatusLocked || isClient;  // Client users can't edit form fields
+                const isLocked = isStatusLocked || isClient || phasePerms.isLocked || !phasePerms.canEdit;
                 const manualKeys = new Set(["answer", "scale_rating", "compliance_check", "target_score"]);
                 const aiKeys = new Set(["review_feedback", "justification", "recommendation"]);
+                const docVerifyKeys = new Set(["doc_approved", "doc_date_check", "doc_date", "doc_signed"]);
                 const internalKeys = new Set(["assessor_notes"]);
-                const skipKeys = new Set(["evidence_upload", "doc_date_check", "doc_approved", "doc_signed"]);
+                const skipKeys = new Set(["evidence_upload"]);
                 const allFields = [...nodeResponse.template.fields].sort((a: any, b: any) => a.sort_order - b.sort_order);
                 const manualFields = allFields.filter((f: any) => manualKeys.has(f.field_key));
                 const aiFields = allFields.filter((f: any) => aiKeys.has(f.field_key));
+                const docVerifyFields = allFields.filter((f: any) => docVerifyKeys.has(f.field_key));
                 const internalFields = allFields.filter((f: any) => internalKeys.has(f.field_key));
-                // Fields that don't match any category (other frameworks' fields)
-                const otherFields = allFields.filter((f: any) => !manualKeys.has(f.field_key) && !aiKeys.has(f.field_key) && !internalKeys.has(f.field_key) && !skipKeys.has(f.field_key));
+                const otherFields = allFields.filter((f: any) => !manualKeys.has(f.field_key) && !aiKeys.has(f.field_key) && !docVerifyKeys.has(f.field_key) && !internalKeys.has(f.field_key) && !skipKeys.has(f.field_key));
 
                 const renderField = (field: any) => (
                   <div key={field.id}>
@@ -697,7 +774,40 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                           );
                         })}
                       </div>
-                    ) : (
+                    ) : docVerifyKeys.has(field.field_key) ? (() => {
+                      const opts: Record<string, { value: string; color: string }[]> = {
+                        doc_approved: [
+                          { value: "Approved", color: "border-status-success bg-status-success/10 text-status-success" },
+                          { value: "Not Approved", color: "border-status-error bg-status-error/10 text-status-error" },
+                        ],
+                        doc_date_check: [
+                          { value: "Valid Date", color: "border-status-success bg-status-success/10 text-status-success" },
+                          { value: "Outdated", color: "border-status-warning bg-status-warning/10 text-status-warning" },
+                          { value: "No Date", color: "border-status-error bg-status-error/10 text-status-error" },
+                        ],
+                        doc_date: [
+                          { value: "Valid Date", color: "border-status-success bg-status-success/10 text-status-success" },
+                          { value: "Outdated", color: "border-status-warning bg-status-warning/10 text-status-warning" },
+                          { value: "No Date", color: "border-status-error bg-status-error/10 text-status-error" },
+                        ],
+                        doc_signed: [
+                          { value: "Signed", color: "border-status-success bg-status-success/10 text-status-success" },
+                          { value: "No Signature", color: "border-status-warning bg-status-warning/10 text-status-warning" },
+                        ],
+                      };
+                      const options = [...(opts[field.field_key] || []), { value: "Not Checked", color: "border-kpmg-border bg-kpmg-light-gray/50 text-kpmg-placeholder" }];
+                      const current = currentFormData[field.field_key] || "Not Checked";
+                      return (
+                        <div className="flex flex-col gap-1.5">
+                          {options.map((opt) => (
+                            <button key={opt.value} onClick={() => handleFieldChange(field.field_key, opt.value)} disabled={isLocked}
+                              className={`px-3 py-2 rounded-btn border-2 text-xs font-semibold transition-all text-center ${current === opt.value ? opt.color : "border-kpmg-border text-kpmg-gray hover:border-kpmg-light/40"}`}>
+                              {opt.value}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })() : (
                       <textarea value={currentFormData[field.field_key] || ""} onChange={(e) => handleFieldChange(field.field_key, e.target.value)}
                         rows={4} className="kpmg-input resize-y min-h-[100px]" placeholder={field.placeholder || ""} disabled={isLocked} />
                     )}
@@ -723,7 +833,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                         <h3 className="text-sm font-heading font-bold text-kpmg-navy">Supporting Evidence</h3>
                         {evidence && evidence.length > 0 && <span className="text-[10px] font-mono text-kpmg-placeholder">{evidence.length} file{evidence.length !== 1 ? "s" : ""}</span>}
                       </div>
-                      {!isStatusLocked && (
+                      {!isStatusLocked && phasePerms.canUpload && (
                         <label className="kpmg-btn-secondary text-xs flex items-center gap-1.5 px-3 py-1.5 cursor-pointer">
                           <Upload className="w-3.5 h-3.5" />{uploading ? "Uploading..." : "Upload Files"}
                           <input type="file" multiple accept=".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.zip" className="hidden" onChange={(e) => e.target.files && handleUpload(e.target.files)} disabled={uploading} />
@@ -735,7 +845,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                       <div className="border-2 border-dashed border-kpmg-border rounded-btn p-6 text-center">
                         <File className="w-8 h-8 text-kpmg-border mx-auto mb-2" />
                         <p className="text-xs text-kpmg-placeholder">No evidence uploaded yet</p>
-                        {!isStatusLocked && (
+                        {!isStatusLocked && phasePerms.canUpload && (
                           <label className="text-xs text-kpmg-light hover:underline cursor-pointer mt-1 inline-block">
                             Click to upload<input type="file" multiple accept=".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.zip" className="hidden" onChange={(e) => e.target.files && handleUpload(e.target.files)} disabled={uploading} />
                           </label>
@@ -780,8 +890,8 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                     )}
                   </div>
 
-                  {/* 3. AI Assess Button (hidden for client users) */}
-                  {!isStatusLocked && !isClient && (
+                  {/* 3. AI Assess Button (hidden for client users and locked phases) */}
+                  {!isStatusLocked && !isClient && !phasePerms.isLocked && phasePerms.canEdit && (
                     <div className="flex justify-center mb-4">
                       <button onClick={handleAiAssess} disabled={aiAssessing}
                         className="flex items-center gap-2 px-6 py-3 rounded-card text-sm font-semibold border-2 border-kpmg-purple/30 text-kpmg-purple hover:bg-kpmg-purple/5 hover:border-kpmg-purple/50 transition-all disabled:opacity-50">
@@ -851,50 +961,21 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                         <span className="text-[10px] text-kpmg-placeholder">— auto-filled by AI Assess, editable</span>
                       </div>
                       <div className="space-y-5">
-                        {/* Review Feedback first */}
-                        {aiFields.filter((f: any) => f.field_key === "review_feedback").map(renderField)}
+                        {aiFields.map(renderField)}
+                      </div>
+                    </div>
+                  )}
 
-                        {/* Document Verification Status — always visible */}
-                        {(() => {
-                          const rd = currentFormData;
-                          const docAnalysis = rd.ai_assessment?.document_analysis || [];
-                          const hasBeenChecked = docAnalysis.length > 0 || rd.doc_approved != null;
-                          const allApproved = docAnalysis.length > 0 ? docAnalysis.every((d: any) => d.is_approved) : rd.doc_approved;
-                          const allSigned = docAnalysis.length > 0 ? docAnalysis.every((d: any) => d.has_signature) : rd.doc_signed;
-                          const docDate = docAnalysis.length > 0 ? docAnalysis.find((d: any) => d.document_date)?.document_date : null;
-                          return (
-                            <div>
-                              <label className="kpmg-label">Document Verification</label>
-                              <p className="text-[10px] text-kpmg-placeholder mb-2">Auto-checked by AI Assess when evidence is reviewed</p>
-                              <div className="grid grid-cols-3 gap-3">
-                                <div className={`p-3 rounded-btn border-2 text-center ${!hasBeenChecked ? "border-kpmg-border bg-kpmg-light-gray/50" : docDate ? "border-status-success bg-status-success/5" : "border-status-warning bg-status-warning/5"}`}>
-                                  <p className={`text-sm font-bold ${!hasBeenChecked ? "text-kpmg-placeholder" : docDate ? "text-status-success" : "text-status-warning"}`}>
-                                    {!hasBeenChecked ? "Not Checked" : docDate ? docDate : "No Date"}
-                                  </p>
-                                  <p className="text-[10px] text-kpmg-placeholder mt-0.5">Document Date</p>
-                                </div>
-                                <div className={`p-3 rounded-btn border-2 text-center ${!hasBeenChecked ? "border-kpmg-border bg-kpmg-light-gray/50" : allApproved ? "border-status-success bg-status-success/5" : "border-status-error bg-status-error/5"}`}>
-                                  <p className={`text-sm font-bold ${!hasBeenChecked ? "text-kpmg-placeholder" : allApproved ? "text-status-success" : "text-status-error"}`}>
-                                    {!hasBeenChecked ? "Not Checked" : allApproved ? "Approved" : "Not Approved"}
-                                  </p>
-                                  <p className="text-[10px] text-kpmg-placeholder mt-0.5">Approval Status</p>
-                                  {docAnalysis.map((d: any, i: number) => d.approved_by && (
-                                    <p key={i} className="text-[9px] text-kpmg-gray mt-0.5">By: {d.approved_by}</p>
-                                  ))}
-                                </div>
-                                <div className={`p-3 rounded-btn border-2 text-center ${!hasBeenChecked ? "border-kpmg-border bg-kpmg-light-gray/50" : allSigned ? "border-status-success bg-status-success/5" : "border-status-warning bg-status-warning/5"}`}>
-                                  <p className={`text-sm font-bold ${!hasBeenChecked ? "text-kpmg-placeholder" : allSigned ? "text-status-success" : "text-status-warning"}`}>
-                                    {!hasBeenChecked ? "Not Checked" : allSigned ? "Signed" : "No Signature"}
-                                  </p>
-                                  <p className="text-[10px] text-kpmg-placeholder mt-0.5">Signature / Stamp</p>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                        {/* Remaining AI fields (justification, recommendation) */}
-                        {aiFields.filter((f: any) => f.field_key !== "review_feedback").map(renderField)}
+                  {/* 4b. Document Verification Fields (compact grid) */}
+                  {docVerifyFields.length > 0 && (
+                    <div className="kpmg-card p-5 mb-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <FileText className="w-4 h-4 text-kpmg-gray" />
+                        <span className="text-xs font-heading font-bold text-kpmg-navy uppercase">Document Verification</span>
+                        <span className="text-[10px] text-kpmg-placeholder">— set manually or auto-filled by AI Assess</span>
+                      </div>
+                      <div className={`grid gap-4 ${docVerifyFields.length >= 3 ? "grid-cols-3" : docVerifyFields.length === 2 ? "grid-cols-2" : "grid-cols-1"}`}>
+                        {docVerifyFields.map(renderField)}
                       </div>
                     </div>
                   )}
@@ -976,7 +1057,7 @@ export default function AssessmentWorkspacePage({ params }: { params: Promise<{ 
                   {prevNode && <button onClick={() => selectNode(prevNode.id)} className="kpmg-btn-ghost text-xs flex items-center gap-1"><ArrowLeft className="w-3 h-3" /> Previous</button>}
                 </div>
                 <div className="flex gap-2">
-                  {!isClient && (<>
+                  {!isClient && !phasePerms.isLocked && phasePerms.canEdit && (<>
                     <button onClick={() => handleSave("draft")} disabled={saving} className="kpmg-btn-secondary text-xs flex items-center gap-1 px-4 py-2">
                       <Save className="w-3 h-3" />{saving ? "Saving..." : "Save Draft"}
                     </button>

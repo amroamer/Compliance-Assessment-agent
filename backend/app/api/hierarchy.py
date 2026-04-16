@@ -24,12 +24,13 @@ router = APIRouter(tags=["hierarchy"])
 class NodeTypeResponse(BaseModel):
     id: uuid.UUID; framework_id: uuid.UUID; name: str; label: str
     color: str | None = None; icon: str | None = None; sort_order: int
-    is_assessable_default: bool
+    is_assessable_default: bool; node_form_fields: list | None = None
     model_config = {"from_attributes": True}
 
 class NodeTypeCreate(BaseModel):
     name: str; label: str; color: str | None = None; icon: str | None = None
     sort_order: int = 0; is_assessable_default: bool = False
+    node_form_fields: list | None = None
 
 class NodeCreate(BaseModel):
     parent_id: uuid.UUID | None = None; node_type: str; reference_code: str | None = None

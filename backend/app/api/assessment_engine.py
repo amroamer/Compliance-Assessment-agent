@@ -516,7 +516,8 @@ async def list_assessments(
     if assessed_entity_id: query = query.where(AssessmentInstance.assessed_entity_id == assessed_entity_id)
     if status_filter: query = query.where(AssessmentInstance.status == status_filter)
     result = await db.execute(query.order_by(AssessmentInstance.created_at.desc()))
-    return [_instance_resp(i) for i in result.scalars().all()]
+    instances = result.scalars().all()
+    return [_instance_resp(i) for i in instances]
 
 @router.get("/api/assessments/{inst_id}")
 async def get_assessment(inst_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -531,7 +532,14 @@ async def get_assessment(inst_id: uuid.UUID, db: AsyncSession = Depends(get_db),
     if i.framework and getattr(i.framework, 'requires_product_assessment', False):
         await _sync_products_for_instance(db, i)
 
-    return _instance_resp(i)
+    # Load all phases for the cycle to include in response
+    from app.models.cycle_phase import AssessmentCyclePhase
+    all_phases = (await db.execute(
+        select(AssessmentCyclePhase).where(AssessmentCyclePhase.cycle_id == i.cycle_id)
+        .order_by(AssessmentCyclePhase.sort_order)
+    )).scalars().all()
+
+    return _instance_resp(i, all_phases=all_phases if all_phases else None)
 
 
 async def _sync_products_for_instance(db: AsyncSession, inst: AssessmentInstance):
@@ -617,10 +625,18 @@ async def create_assessment(data: AssessmentInstanceCreate, db: AsyncSession = D
     multiplier = len(products) if products else 1
     total = len(nodes) * multiplier
 
+    # Auto-assign to first phase if cycle has phases configured
+    from app.models.cycle_phase import AssessmentCyclePhase
+    first_phase = (await db.execute(
+        select(AssessmentCyclePhase).where(AssessmentCyclePhase.cycle_id == data.cycle_id)
+        .order_by(AssessmentCyclePhase.sort_order).limit(1)
+    )).scalar_one_or_none()
+
     instance = AssessmentInstance(
         cycle_id=data.cycle_id, framework_id=cycle.framework_id,
         assessed_entity_id=data.assessed_entity_id, ai_product_id=None,
         total_assessable_nodes=total, assigned_to=current_user.id,
+        current_phase_id=first_phase.id if first_phase else None,
     )
     db.add(instance)
     await db.flush()
@@ -658,10 +674,33 @@ async def create_assessment(data: AssessmentInstanceCreate, db: AsyncSession = D
     ).where(AssessmentInstance.id == instance.id))
     return _instance_resp(r.scalar_one())
 
-def _instance_resp(i):
+def _phase_data(phase):
+    """Serialize a phase object for API responses."""
+    if not phase:
+        return None
     return {
+        "id": str(phase.id), "phase_number": phase.phase_number,
+        "name": phase.name, "name_ar": phase.name_ar,
+        "actor": phase.actor, "phase_type": phase.phase_type,
+        "allows_data_entry": phase.allows_data_entry, "allows_evidence_upload": phase.allows_evidence_upload,
+        "allows_submission": phase.allows_submission, "allows_review": phase.allows_review,
+        "allows_corrections": phase.allows_corrections, "is_read_only": phase.is_read_only,
+        "banner_message": phase.banner_message, "banner_message_ar": phase.banner_message_ar,
+        "color": phase.color, "icon": phase.icon,
+    }
+
+
+def _instance_resp(i, all_phases=None):
+    cycle_data = None
+    if i.cycle:
+        cycle_data = {"id": str(i.cycle.id), "cycle_name": i.cycle.cycle_name}
+    current_phase = _phase_data(i.current_phase) if hasattr(i, "current_phase") and i.current_phase else None
+    current_phase_id = str(i.current_phase_id) if hasattr(i, "current_phase_id") and i.current_phase_id else None
+    resp = {
         "id": str(i.id), "status": i.status,
-        "cycle": {"id": str(i.cycle.id), "cycle_name": i.cycle.cycle_name} if i.cycle else None,
+        "cycle": cycle_data,
+        "current_phase": current_phase,
+        "current_phase_id": current_phase_id,
         "framework": {"id": str(i.framework.id), "name": i.framework.name, "abbreviation": i.framework.abbreviation} if i.framework else None,
         "assessed_entity": {"id": str(i.assessed_entity.id), "name": i.assessed_entity.name, "abbreviation": i.assessed_entity.abbreviation} if i.assessed_entity else None,
         "ai_product": {"id": str(i.ai_product.id), "name": i.ai_product.name, "product_type": i.ai_product.product_type, "risk_level": i.ai_product.risk_level} if i.ai_product else None,
@@ -677,6 +716,14 @@ def _instance_resp(i):
         "completed_at": i.completed_at.isoformat() if i.completed_at else None,
         "created_at": i.created_at.isoformat() if i.created_at else "",
     }
+    if all_phases is not None:
+        resp["all_phases"] = [
+            {"id": str(p.id), "phase_number": p.phase_number, "name": p.name, "name_ar": p.name_ar,
+             "actor": p.actor, "phase_type": p.phase_type, "color": p.color, "icon": p.icon,
+             "is_current": str(p.id) == current_phase_id}
+            for p in all_phases
+        ]
+    return resp
 
 
 # ============ LAYER 4: ASSESSMENT RESPONSES API ============
@@ -1801,3 +1848,119 @@ async def get_framework_performance(
         "leaderboard": leaderboard,
         "score_distribution": scale_levels,
     }
+
+
+# ============ PHASE TRANSITIONS (per assessment instance) ============
+
+from app.models.cycle_phase import AssessmentCyclePhase, AssessmentPhaseLog
+from pydantic import BaseModel as _PydanticBase
+
+class _PhaseTransitionRequest(_PydanticBase):
+    notes: str | None = None
+
+class _SetPhaseRequest(_PydanticBase):
+    phase_id: uuid.UUID
+    notes: str | None = None
+
+
+@router.get("/api/assessments/{inst_id}/current-phase")
+async def get_instance_current_phase(inst_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    inst = (await db.execute(select(AssessmentInstance).where(AssessmentInstance.id == inst_id))).scalar_one_or_none()
+    if not inst: raise HTTPException(404, "Instance not found")
+    if not inst.current_phase_id:
+        return None
+    return _phase_data(inst.current_phase)
+
+
+@router.post("/api/assessments/{inst_id}/advance-phase")
+async def advance_instance_phase(inst_id: uuid.UUID, data: _PhaseTransitionRequest, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin", "kpmg_user"))):
+    inst = (await db.execute(select(AssessmentInstance).where(AssessmentInstance.id == inst_id))).scalar_one_or_none()
+    if not inst: raise HTTPException(404, "Instance not found")
+    if not inst.current_phase_id:
+        raise HTTPException(400, "This assessment has no phases configured")
+    # Get all phases for this cycle ordered
+    phases = (await db.execute(
+        select(AssessmentCyclePhase).where(AssessmentCyclePhase.cycle_id == inst.cycle_id)
+        .order_by(AssessmentCyclePhase.sort_order)
+    )).scalars().all()
+    current_idx = next((i for i, p in enumerate(phases) if p.id == inst.current_phase_id), -1)
+    if current_idx == -1: raise HTTPException(400, "Current phase not found in cycle")
+    if current_idx >= len(phases) - 1: raise HTTPException(400, "Already on the last phase")
+    from_phase = phases[current_idx]
+    to_phase = phases[current_idx + 1]
+    inst.current_phase_id = to_phase.id
+    db.add(AssessmentPhaseLog(
+        instance_id=inst_id, from_phase_id=from_phase.id, to_phase_id=to_phase.id,
+        transitioned_by=current_user.id, notes=data.notes,
+    ))
+    await db.flush()
+    return {
+        "previous_phase": _phase_data(from_phase),
+        "current_phase": _phase_data(to_phase),
+    }
+
+
+@router.post("/api/assessments/{inst_id}/revert-phase")
+async def revert_instance_phase(inst_id: uuid.UUID, data: _PhaseTransitionRequest, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    inst = (await db.execute(select(AssessmentInstance).where(AssessmentInstance.id == inst_id))).scalar_one_or_none()
+    if not inst: raise HTTPException(404, "Instance not found")
+    if not inst.current_phase_id:
+        raise HTTPException(400, "This assessment has no phases configured")
+    phases = (await db.execute(
+        select(AssessmentCyclePhase).where(AssessmentCyclePhase.cycle_id == inst.cycle_id)
+        .order_by(AssessmentCyclePhase.sort_order)
+    )).scalars().all()
+    current_idx = next((i for i, p in enumerate(phases) if p.id == inst.current_phase_id), -1)
+    if current_idx <= 0: raise HTTPException(400, "Already on the first phase")
+    from_phase = phases[current_idx]
+    to_phase = phases[current_idx - 1]
+    inst.current_phase_id = to_phase.id
+    db.add(AssessmentPhaseLog(
+        instance_id=inst_id, from_phase_id=from_phase.id, to_phase_id=to_phase.id,
+        transitioned_by=current_user.id, notes=data.notes or "Phase reverted",
+    ))
+    await db.flush()
+    return {
+        "previous_phase": _phase_data(from_phase),
+        "current_phase": _phase_data(to_phase),
+    }
+
+
+@router.post("/api/assessments/{inst_id}/set-phase")
+async def set_instance_phase(inst_id: uuid.UUID, data: _SetPhaseRequest, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    inst = (await db.execute(select(AssessmentInstance).where(AssessmentInstance.id == inst_id))).scalar_one_or_none()
+    if not inst: raise HTTPException(404, "Instance not found")
+    target = (await db.execute(
+        select(AssessmentCyclePhase).where(AssessmentCyclePhase.id == data.phase_id, AssessmentCyclePhase.cycle_id == inst.cycle_id)
+    )).scalar_one_or_none()
+    if not target: raise HTTPException(400, "Phase not found or does not belong to this cycle")
+    from_phase_id = inst.current_phase_id
+    inst.current_phase_id = target.id
+    db.add(AssessmentPhaseLog(
+        instance_id=inst_id, from_phase_id=from_phase_id, to_phase_id=target.id,
+        transitioned_by=current_user.id, notes=data.notes or "Phase set manually",
+    ))
+    await db.flush()
+    return {"current_phase": _phase_data(target)}
+
+
+@router.get("/api/assessments/{inst_id}/phase-log")
+async def get_instance_phase_log(inst_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    logs = (await db.execute(
+        select(AssessmentPhaseLog).where(AssessmentPhaseLog.instance_id == inst_id)
+        .order_by(AssessmentPhaseLog.transitioned_at.desc())
+    )).scalars().all()
+    results = []
+    for log in logs:
+        from_p = (await db.execute(select(AssessmentCyclePhase).where(AssessmentCyclePhase.id == log.from_phase_id))).scalar_one_or_none() if log.from_phase_id else None
+        to_p = (await db.execute(select(AssessmentCyclePhase).where(AssessmentCyclePhase.id == log.to_phase_id))).scalar_one_or_none()
+        user = (await db.execute(select(User).where(User.id == log.transitioned_by))).scalar_one_or_none()
+        results.append({
+            "id": str(log.id),
+            "from_phase": from_p.name if from_p else None,
+            "to_phase": to_p.name if to_p else None,
+            "transitioned_by": user.name if user else None,
+            "transitioned_at": log.transitioned_at.isoformat(),
+            "notes": log.notes,
+        })
+    return results

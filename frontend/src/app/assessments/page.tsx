@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
-import { Plus, ClipboardCheck, X, Save, Trash2 } from "lucide-react";
+import { Plus, ClipboardCheck, X, Save, Trash2, ArrowRight, RotateCcw, ChevronRight } from "lucide-react";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -72,6 +72,7 @@ export default function AssessmentsPage() {
                 <th className="text-center px-5 py-3.5 text-[13px] font-semibold text-white uppercase tracking-wide">Progress</th>
                 <th className="text-center px-5 py-3.5 text-[13px] font-semibold text-white uppercase tracking-wide">Score</th>
                 <th className="text-center px-5 py-3.5 text-[13px] font-semibold text-white uppercase tracking-wide">Status</th>
+                <th className="text-center px-5 py-3.5 text-[13px] font-semibold text-white uppercase tracking-wide">Phase</th>
                 <th className="text-right px-5 py-3.5 text-[13px] font-semibold text-white uppercase tracking-wide">Actions</th>
               </tr></thead>
               <tbody>
@@ -97,6 +98,29 @@ export default function AssessmentsPage() {
                       </td>
                       <td className="px-5 py-4 text-center"><span className="text-sm font-heading font-bold text-kpmg-navy">{a.overall_score ? `${a.overall_score}` : "—"}</span></td>
                       <td className="px-5 py-4 text-center"><span className={STATUS_STYLES[a.status] || "kpmg-status-draft"}>{a.status.replace("_", " ")}</span></td>
+                      {/* Phase column — per instance */}
+                      <td className="px-5 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        {a.current_phase ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded" style={{ backgroundColor: (a.current_phase.color || "#6B7280") + "15", color: a.current_phase.color || "#6B7280" }}>
+                              {a.current_phase.name}
+                            </span>
+                            <button onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!await confirm({ title: "Advance Phase", message: `Move "${a.assessed_entity?.name}" to the next phase?`, variant: "warning", confirmLabel: "Advance" })) return;
+                              try {
+                                const r: any = await api.post(`/assessments/${a.id}/advance-phase`, {});
+                                toast(`Advanced to: ${r.current_phase.name}`, "success");
+                                queryClient.invalidateQueries({ queryKey: ["assessments"] });
+                              } catch (err: any) { toast(err.message, "error"); }
+                            }} className="p-1 text-kpmg-placeholder hover:text-kpmg-blue rounded-btn transition" title="Advance to next phase">
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-kpmg-placeholder">—</span>
+                        )}
+                      </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button className="kpmg-btn-ghost text-xs" onClick={async (e) => { e.stopPropagation(); router.push(`/assessments/${a.id}`); }}>Open</button>

@@ -7,7 +7,7 @@ import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
 import {
   Plus, Edit, Trash2, CheckCircle, Circle, Clock,
-  X, Save, AlertTriangle, Download, Upload,
+  X, Save, AlertTriangle, Download, Upload, Settings, ChevronRight, ArrowRight, RotateCcw, Eye,
 } from "lucide-react";
 import { ImportPreviewModal } from "@/components/frameworks/ImportPreviewModal";
 import { useConfirm } from "@/components/ui/ConfirmModal";
@@ -54,9 +54,34 @@ export default function AssessmentCyclesPage() {
   const [error, setError] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // Phase management state
+  const [phaseCycleId, setPhaseCycleId] = useState<string | null>(null);
+  const [phaseCycleName, setPhaseCycleName] = useState("");
+  const [editingPhase, setEditingPhase] = useState<any>(null); // null=closed, {}=new, {id:...}=editing
+  const [viewingPhase, setViewingPhase] = useState<any>(null); // null=closed, phase object=viewing
+  const [phaseForm, setPhaseForm] = useState({
+    phase_number: 1, name: "", name_ar: "", description: "", description_ar: "",
+    actor: "assessed_entity", phase_type: "in_system",
+    allows_data_entry: false, allows_evidence_upload: false, allows_submission: false,
+    allows_review: false, allows_corrections: false, is_read_only: false,
+    planned_start_date: "", planned_end_date: "",
+    banner_message: "", banner_message_ar: "", color: "#0091DA", icon: "",
+  });
+
   const { data: frameworks } = useQuery<Framework[]>({
     queryKey: ["frameworks-list"],
     queryFn: () => api.get("/frameworks/"),
+  });
+
+  const { data: phasesData, refetch: refetchPhases } = useQuery<any>({
+    queryKey: ["cycle-phases", phaseCycleId],
+    queryFn: () => api.get(`/assessment-cycle-configs/${phaseCycleId}/phases`),
+    enabled: !!phaseCycleId,
+  });
+
+  const { data: templates } = useQuery<any[]>({
+    queryKey: ["phase-templates"],
+    queryFn: () => api.get("/phase-templates"),
   });
 
   const { data: cycles, isLoading } = useQuery<CycleConfig[]>({
@@ -269,6 +294,9 @@ export default function AssessmentCyclesPage() {
                       </div>
                       <StatusBadge status={c.status} />
                       <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={(e) => { e.stopPropagation(); setPhaseCycleId(c.id); setPhaseCycleName(c.cycle_name); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-blue hover:bg-kpmg-blue/5 rounded-btn transition" title="Configure Phases">
+                          <Settings className="w-4 h-4" />
+                        </button>
                         <button onClick={async (e) => { e.stopPropagation(); openEdit(c); }} className="p-2 text-kpmg-placeholder hover:text-kpmg-light hover:bg-kpmg-hover-bg rounded-btn transition" title="Edit">
                           <Edit className="w-4 h-4" />
                         </button>
@@ -382,6 +410,414 @@ export default function AssessmentCyclesPage() {
             toast(`Imported ${d.imported} cycles`, "success"); queryClient.invalidateQueries({ queryKey: ["cycle-configs"] });
           } catch (e: any) { toast(e.message || "Import failed", "error"); } finally { setImporting(false); setImportPreview(null); setImportFile(null); }
         }} />
+
+      {/* Phases Management Modal */}
+      {phaseCycleId && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setPhaseCycleId(null)}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-3xl animate-fade-in-up max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border shrink-0">
+              <div>
+                <h3 className="text-lg font-heading font-bold text-kpmg-navy">Cycle Phases</h3>
+                <p className="text-xs text-kpmg-placeholder">{phaseCycleName}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Load Template */}
+                <select
+                  onChange={async (e) => {
+                    const tmpl = e.target.value;
+                    if (!tmpl) return;
+                    if (!await confirm({ title: "Load Template", message: "This will replace all existing phases with the template. Continue?", variant: "warning", confirmLabel: "Load Template" })) { e.target.value = ""; return; }
+                    try {
+                      await api.post(`/assessment-cycle-configs/${phaseCycleId}/phases/from-template`, { template: tmpl });
+                      refetchPhases();
+                      toast("Template loaded", "success");
+                    } catch (err: any) { toast(err.message, "error"); }
+                    e.target.value = "";
+                  }}
+                  className="kpmg-input text-xs py-1.5 w-44"
+                >
+                  <option value="">Load Template...</option>
+                  {(templates || []).map((t: any) => <option key={t.key} value={t.key}>{t.name} ({t.phases})</option>)}
+                </select>
+                <button onClick={() => setPhaseCycleId(null)} className="p-1 text-kpmg-placeholder hover:text-kpmg-gray">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 overflow-y-auto flex-1">
+              {/* Phase Timeline */}
+              {!phasesData?.phases?.length ? (
+                <div className="text-center py-12">
+                  <Clock className="w-12 h-12 text-kpmg-border mx-auto mb-3" />
+                  <p className="text-kpmg-gray font-heading font-semibold">No phases configured</p>
+                  <p className="text-xs text-kpmg-placeholder mt-1">Load a template or add phases manually</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {phasesData.phases.map((p: any) => {
+                    const actorColors: Record<string, string> = { assessed_entity: "text-kpmg-blue bg-kpmg-blue/10", regulator: "text-status-warning bg-status-warning/10", kpmg: "text-kpmg-purple bg-kpmg-purple/10", all: "text-kpmg-gray bg-kpmg-light-gray" };
+                    return (
+                      <div key={p.id} className="rounded-btn border border-kpmg-border p-4 transition hover:shadow-sm">
+                        <div className="flex items-start gap-3">
+                          {/* Phase number circle */}
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold" style={{ backgroundColor: (p.color || "#6B7280") + "20", color: p.color || "#6B7280" }}>
+                            {p.phase_number}
+                          </div>
+                          {/* Phase details */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-heading font-bold text-kpmg-navy">{p.name}</span>
+                              {p.name_ar && <span className="text-xs text-kpmg-placeholder font-arabic" dir="rtl">{p.name_ar}</span>}
+                              <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${actorColors[p.actor] || actorColors.all}`}>
+                                {p.actor === "assessed_entity" ? "Entity" : p.actor === "regulator" ? "Regulator" : p.actor === "kpmg" ? "KPMG" : "All"}
+                              </span>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-kpmg-light-gray text-kpmg-placeholder">
+                                {p.phase_type === "in_system" ? "In System" : p.phase_type === "outside_system" ? "External" : "Mixed"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              {p.allows_data_entry && <span className="text-[9px] text-status-success">Data Entry</span>}
+                              {p.allows_evidence_upload && <span className="text-[9px] text-status-success">Evidence Upload</span>}
+                              {p.allows_submission && <span className="text-[9px] text-status-success">Submission</span>}
+                              {p.allows_review && <span className="text-[9px] text-status-success">Review</span>}
+                              {p.allows_corrections && <span className="text-[9px] text-status-warning">Corrections</span>}
+                              {p.is_read_only && <span className="text-[9px] text-status-error">Read Only</span>}
+                            </div>
+                            {p.banner_message && <p className="text-[10px] text-kpmg-placeholder mt-1 italic">{p.banner_message}</p>}
+                            {p.planned_start_date && (
+                              <div className="flex items-center gap-3 mt-1">
+                                <span className="text-[9px] text-kpmg-placeholder">Planned: {p.planned_start_date}{p.planned_end_date ? ` — ${p.planned_end_date}` : ""}</span>
+                              </div>
+                            )}
+                          </div>
+                          {/* Actions */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button onClick={() => setViewingPhase(p)} className="p-1.5 text-kpmg-placeholder hover:text-kpmg-blue rounded-btn transition" title="View phase details">
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => {
+                              setEditingPhase(p);
+                              setPhaseForm({
+                                phase_number: p.phase_number, name: p.name, name_ar: p.name_ar || "", description: p.description || "", description_ar: p.description_ar || "",
+                                actor: p.actor, phase_type: p.phase_type,
+                                allows_data_entry: p.allows_data_entry, allows_evidence_upload: p.allows_evidence_upload,
+                                allows_submission: p.allows_submission, allows_review: p.allows_review,
+                                allows_corrections: p.allows_corrections, is_read_only: p.is_read_only,
+                                planned_start_date: p.planned_start_date || "", planned_end_date: p.planned_end_date || "",
+                                banner_message: p.banner_message || "", banner_message_ar: p.banner_message_ar || "",
+                                color: p.color || "#0091DA", icon: p.icon || "",
+                              });
+                            }} className="p-1.5 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Edit phase">
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={async () => {
+                              if (!await confirm({ title: "Delete Phase", message: `Delete "${p.name}"? This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) return;
+                              try {
+                                await api.delete(`/assessment-cycle-configs/${phaseCycleId}/phases/${p.id}`);
+                                refetchPhases(); toast("Phase deleted", "info");
+                              } catch (err: any) { toast(err.message, "error"); }
+                            }} className="p-1.5 text-kpmg-placeholder hover:text-status-error rounded-btn transition" title="Delete phase">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Add Phase button */}
+              <button onClick={() => {
+                const nextNum = (phasesData?.phases?.length || 0) + 1;
+                setEditingPhase({});
+                setPhaseForm({ phase_number: nextNum, name: "", name_ar: "", description: "", description_ar: "", actor: "assessed_entity", phase_type: "in_system", allows_data_entry: false, allows_evidence_upload: false, allows_submission: false, allows_review: false, allows_corrections: false, is_read_only: false, planned_start_date: "", planned_end_date: "", banner_message: "", banner_message_ar: "", color: "#0091DA", icon: "" });
+              }} className="kpmg-btn-secondary text-xs px-4 py-2 flex items-center gap-1.5 mt-3 w-full justify-center">
+                <Plus className="w-3.5 h-3.5" /> Add Phase
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Phase Edit/Create Form Modal */}
+      {editingPhase !== null && phaseCycleId && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" onClick={() => setEditingPhase(null)}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-2xl animate-fade-in-up max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border shrink-0">
+              <h3 className="text-lg font-heading font-bold text-kpmg-navy">{editingPhase?.id ? "Edit Phase" : "New Phase"}</h3>
+              <button onClick={() => setEditingPhase(null)} className="p-1 text-kpmg-placeholder hover:text-kpmg-gray"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="px-6 py-5 overflow-y-auto flex-1 space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="kpmg-label">Phase # *</label>
+                  <input type="number" value={phaseForm.phase_number} onChange={(e) => setPhaseForm(f => ({ ...f, phase_number: parseInt(e.target.value) || 1 }))} className="kpmg-input" />
+                </div>
+                <div className="col-span-2">
+                  <label className="kpmg-label">Phase Name *</label>
+                  <input type="text" value={phaseForm.name} onChange={(e) => setPhaseForm(f => ({ ...f, name: e.target.value }))} className="kpmg-input" placeholder="e.g. Document Upload & Self-Assessment" />
+                </div>
+              </div>
+              <div>
+                <label className="kpmg-label">Arabic Name</label>
+                <input type="text" dir="rtl" value={phaseForm.name_ar} onChange={(e) => setPhaseForm(f => ({ ...f, name_ar: e.target.value }))} className="kpmg-input font-arabic text-right" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="kpmg-label">Actor *</label>
+                  <select value={phaseForm.actor} onChange={(e) => setPhaseForm(f => ({ ...f, actor: e.target.value }))} className="kpmg-input">
+                    <option value="assessed_entity">Assessed Entity</option>
+                    <option value="regulator">Regulator</option>
+                    <option value="kpmg">KPMG</option>
+                    <option value="all">All Parties</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="kpmg-label">Phase Type *</label>
+                  <select value={phaseForm.phase_type} onChange={(e) => setPhaseForm(f => ({ ...f, phase_type: e.target.value }))} className="kpmg-input">
+                    <option value="in_system">In System</option>
+                    <option value="outside_system">Outside System</option>
+                    <option value="mixed">Mixed</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="kpmg-label mb-2">Permissions</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { key: "allows_data_entry", label: "Data Entry" },
+                    { key: "allows_evidence_upload", label: "Evidence Upload" },
+                    { key: "allows_submission", label: "Submission" },
+                    { key: "allows_review", label: "Review" },
+                    { key: "allows_corrections", label: "Corrections" },
+                    { key: "is_read_only", label: "Read Only" },
+                  ].map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-2 cursor-pointer text-xs">
+                      <input type="checkbox" checked={(phaseForm as any)[key]} onChange={(e) => setPhaseForm(f => ({ ...f, [key]: e.target.checked }))} className="w-4 h-4 rounded" />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="kpmg-label">Planned Start Date</label>
+                  <input type="date" value={phaseForm.planned_start_date} onChange={(e) => setPhaseForm(f => ({ ...f, planned_start_date: e.target.value }))} className="kpmg-input" />
+                </div>
+                <div>
+                  <label className="kpmg-label">Planned End Date</label>
+                  <input type="date" value={phaseForm.planned_end_date} onChange={(e) => setPhaseForm(f => ({ ...f, planned_end_date: e.target.value }))} className="kpmg-input" />
+                </div>
+              </div>
+              <div>
+                <label className="kpmg-label">Banner Message</label>
+                <textarea value={phaseForm.banner_message} onChange={(e) => setPhaseForm(f => ({ ...f, banner_message: e.target.value }))} rows={2} className="kpmg-input resize-none" placeholder="Message shown to users during this phase..." />
+              </div>
+              <div>
+                <label className="kpmg-label">Banner Message (Arabic)</label>
+                <textarea dir="rtl" value={phaseForm.banner_message_ar} onChange={(e) => setPhaseForm(f => ({ ...f, banner_message_ar: e.target.value }))} rows={2} className="kpmg-input resize-none font-arabic text-right" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="kpmg-label">Color</label>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={phaseForm.color} onChange={(e) => setPhaseForm(f => ({ ...f, color: e.target.value }))} className="w-10 h-10 rounded border border-kpmg-border cursor-pointer" />
+                    <input type="text" value={phaseForm.color} onChange={(e) => setPhaseForm(f => ({ ...f, color: e.target.value }))} className="kpmg-input flex-1 font-mono text-xs" />
+                  </div>
+                </div>
+                <div>
+                  <label className="kpmg-label">Icon</label>
+                  <select value={phaseForm.icon} onChange={(e) => setPhaseForm(f => ({ ...f, icon: e.target.value }))} className="kpmg-input">
+                    <option value="">None</option>
+                    <option value="clock">Clock</option>
+                    <option value="upload">Upload</option>
+                    <option value="eye">Eye/Review</option>
+                    <option value="edit">Edit/Corrections</option>
+                    <option value="check-circle">Check/Complete</option>
+                    <option value="award">Award/Results</option>
+                    <option value="clipboard">Clipboard</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-kpmg-border shrink-0">
+              <button onClick={() => setEditingPhase(null)} className="kpmg-btn-secondary text-sm px-5 py-2.5">Cancel</button>
+              <button
+                onClick={async () => {
+                  try {
+                    const payload = { ...phaseForm, planned_start_date: phaseForm.planned_start_date || null, planned_end_date: phaseForm.planned_end_date || null };
+                    if (editingPhase?.id) {
+                      await api.put(`/assessment-cycle-configs/${phaseCycleId}/phases/${editingPhase.id}`, payload);
+                      toast("Phase updated", "success");
+                    } else {
+                      await api.post(`/assessment-cycle-configs/${phaseCycleId}/phases`, payload);
+                      toast("Phase created", "success");
+                    }
+                    setEditingPhase(null);
+                    refetchPhases();
+                  } catch (err: any) { toast(err.message, "error"); }
+                }}
+                disabled={!phaseForm.name}
+                className="kpmg-btn-primary text-sm px-5 py-2.5 flex items-center gap-1.5"
+              >
+                <Save className="w-4 h-4" /> {editingPhase?.id ? "Update" : "Create"} Phase
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Phase Detail View Modal */}
+      {viewingPhase && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" onClick={() => setViewingPhase(null)}>
+          <div className="bg-white rounded-card shadow-2xl w-full max-w-2xl animate-fade-in-up max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-kpmg-border shrink-0">
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${viewingPhase.status === "active" ? "bg-kpmg-blue text-white" : viewingPhase.status === "completed" ? "bg-status-success text-white" : viewingPhase.status === "skipped" ? "bg-kpmg-light-gray text-kpmg-placeholder" : "bg-kpmg-light-gray text-kpmg-gray"}`}>
+                  {viewingPhase.status === "completed" ? "✓" : viewingPhase.status === "skipped" ? "—" : viewingPhase.phase_number}
+                </div>
+                <div>
+                  <h3 className="text-lg font-heading font-bold text-kpmg-navy">{viewingPhase.name}</h3>
+                  {viewingPhase.name_ar && <p className="text-sm text-kpmg-placeholder font-arabic" dir="rtl">{viewingPhase.name_ar}</p>}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => {
+                  setViewingPhase(null);
+                  setEditingPhase(viewingPhase);
+                  setPhaseForm({
+                    phase_number: viewingPhase.phase_number, name: viewingPhase.name, name_ar: viewingPhase.name_ar || "", description: viewingPhase.description || "", description_ar: viewingPhase.description_ar || "",
+                    actor: viewingPhase.actor, phase_type: viewingPhase.phase_type,
+                    allows_data_entry: viewingPhase.allows_data_entry, allows_evidence_upload: viewingPhase.allows_evidence_upload,
+                    allows_submission: viewingPhase.allows_submission, allows_review: viewingPhase.allows_review,
+                    allows_corrections: viewingPhase.allows_corrections, is_read_only: viewingPhase.is_read_only,
+                    planned_start_date: viewingPhase.planned_start_date || "", planned_end_date: viewingPhase.planned_end_date || "",
+                    banner_message: viewingPhase.banner_message || "", banner_message_ar: viewingPhase.banner_message_ar || "",
+                    color: viewingPhase.color || "#0091DA", icon: viewingPhase.icon || "",
+                  });
+                }} className="p-1.5 text-kpmg-placeholder hover:text-kpmg-light rounded-btn transition" title="Edit this phase">
+                  <Edit className="w-4 h-4" />
+                </button>
+                <button onClick={() => setViewingPhase(null)} className="p-1 text-kpmg-placeholder hover:text-kpmg-gray"><X className="w-5 h-5" /></button>
+              </div>
+            </div>
+            <div className="px-6 py-5 overflow-y-auto flex-1 space-y-5">
+              {/* Status & Type Row */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className={`text-xs font-bold uppercase px-2.5 py-1 rounded ${viewingPhase.status === "active" ? "bg-kpmg-blue text-white" : viewingPhase.status === "completed" ? "bg-status-success text-white" : viewingPhase.status === "skipped" ? "bg-kpmg-light-gray text-kpmg-placeholder" : "bg-kpmg-light-gray text-kpmg-gray"}`}>
+                  {viewingPhase.status}
+                </span>
+                <span className={`text-xs font-bold uppercase px-2.5 py-1 rounded ${viewingPhase.actor === "assessed_entity" ? "text-kpmg-blue bg-kpmg-blue/10" : viewingPhase.actor === "regulator" ? "text-status-warning bg-status-warning/10" : viewingPhase.actor === "kpmg" ? "text-kpmg-purple bg-kpmg-purple/10" : "text-kpmg-gray bg-kpmg-light-gray"}`}>
+                  {viewingPhase.actor === "assessed_entity" ? "Assessed Entity" : viewingPhase.actor === "regulator" ? "Regulator" : viewingPhase.actor === "kpmg" ? "KPMG" : "All Parties"}
+                </span>
+                <span className="text-xs px-2.5 py-1 rounded bg-kpmg-light-gray text-kpmg-placeholder font-semibold">
+                  {viewingPhase.phase_type === "in_system" ? "In System" : viewingPhase.phase_type === "outside_system" ? "External (Outside System)" : "Mixed"}
+                </span>
+                {viewingPhase.color && (
+                  <span className="flex items-center gap-1.5 text-xs text-kpmg-placeholder">
+                    <span className="w-4 h-4 rounded border border-kpmg-border" style={{ backgroundColor: viewingPhase.color }} />
+                    {viewingPhase.color}
+                  </span>
+                )}
+              </div>
+
+              {/* Description */}
+              {(viewingPhase.description || viewingPhase.description_ar) && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-heading font-bold text-kpmg-navy uppercase tracking-wider">Description</h4>
+                  {viewingPhase.description && <p className="text-sm text-kpmg-gray">{viewingPhase.description}</p>}
+                  {viewingPhase.description_ar && <p className="text-sm text-kpmg-gray font-arabic" dir="rtl">{viewingPhase.description_ar}</p>}
+                </div>
+              )}
+
+              {/* Permissions */}
+              <div>
+                <h4 className="text-xs font-heading font-bold text-kpmg-navy uppercase tracking-wider mb-2">Permissions</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { key: "allows_data_entry", label: "Data Entry" },
+                    { key: "allows_evidence_upload", label: "Evidence Upload" },
+                    { key: "allows_submission", label: "Submission" },
+                    { key: "allows_review", label: "Review" },
+                    { key: "allows_corrections", label: "Corrections" },
+                    { key: "is_read_only", label: "Read Only" },
+                  ].map(({ key, label }) => (
+                    <div key={key} className={`flex items-center gap-2 text-xs px-3 py-2 rounded-btn border ${viewingPhase[key] ? "border-status-success/30 bg-status-success/5 text-status-success" : "border-kpmg-border bg-kpmg-light-gray/50 text-kpmg-placeholder"}`}>
+                      {viewingPhase[key] ? <CheckCircle className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
+                      {label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div>
+                <h4 className="text-xs font-heading font-bold text-kpmg-navy uppercase tracking-wider mb-2">Dates</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="px-3 py-2 rounded-btn border border-kpmg-border">
+                    <p className="text-[10px] text-kpmg-placeholder uppercase tracking-wider">Planned Start</p>
+                    <p className="text-sm text-kpmg-navy font-semibold">{viewingPhase.planned_start_date || "—"}</p>
+                  </div>
+                  <div className="px-3 py-2 rounded-btn border border-kpmg-border">
+                    <p className="text-[10px] text-kpmg-placeholder uppercase tracking-wider">Planned End</p>
+                    <p className="text-sm text-kpmg-navy font-semibold">{viewingPhase.planned_end_date || "—"}</p>
+                  </div>
+                  <div className="px-3 py-2 rounded-btn border border-kpmg-border">
+                    <p className="text-[10px] text-kpmg-placeholder uppercase tracking-wider">Actual Start</p>
+                    <p className="text-sm text-kpmg-blue font-semibold">{viewingPhase.actual_start_date || "—"}</p>
+                  </div>
+                  <div className="px-3 py-2 rounded-btn border border-kpmg-border">
+                    <p className="text-[10px] text-kpmg-placeholder uppercase tracking-wider">Actual End</p>
+                    <p className="text-sm text-status-success font-semibold">{viewingPhase.actual_end_date || "—"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Banner Messages */}
+              {(viewingPhase.banner_message || viewingPhase.banner_message_ar) && (
+                <div>
+                  <h4 className="text-xs font-heading font-bold text-kpmg-navy uppercase tracking-wider mb-2">Banner Message</h4>
+                  {viewingPhase.banner_message && (
+                    <div className="px-4 py-3 rounded-btn bg-kpmg-blue/5 border border-kpmg-blue/20 text-sm text-kpmg-navy">{viewingPhase.banner_message}</div>
+                  )}
+                  {viewingPhase.banner_message_ar && (
+                    <div className="px-4 py-3 rounded-btn bg-kpmg-blue/5 border border-kpmg-blue/20 text-sm text-kpmg-navy font-arabic mt-2" dir="rtl">{viewingPhase.banner_message_ar}</div>
+                  )}
+                </div>
+              )}
+
+              {/* Metadata */}
+              <div className="pt-3 border-t border-kpmg-border">
+                <div className="flex items-center gap-4 text-[10px] text-kpmg-placeholder">
+                  <span>Phase #{viewingPhase.phase_number}</span>
+                  {viewingPhase.icon && <span>Icon: {viewingPhase.icon}</span>}
+                  {viewingPhase.created_at && <span>Created: {new Date(viewingPhase.created_at).toLocaleDateString()}</span>}
+                  {viewingPhase.updated_at && <span>Updated: {new Date(viewingPhase.updated_at).toLocaleDateString()}</span>}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between px-6 py-4 border-t border-kpmg-border shrink-0">
+              <button
+                onClick={async () => {
+                  const statusWarning = viewingPhase.status === "active" ? " This is the CURRENT ACTIVE phase." : viewingPhase.status === "completed" ? " This phase has already been completed." : "";
+                  if (!await confirm({ title: "Delete Phase", message: `Delete "${viewingPhase.name}"?${statusWarning} This action cannot be undone.`, variant: "danger", confirmLabel: "Delete" })) return;
+                  try {
+                    await api.delete(`/assessment-cycle-configs/${phaseCycleId}/phases/${viewingPhase.id}`);
+                    setViewingPhase(null);
+                    refetchPhases(); toast("Phase deleted", "info");
+                  } catch (err: any) { toast(err.message, "error"); }
+                }}
+                className="flex items-center gap-1.5 text-sm text-status-error hover:bg-[#FEF2F2] px-4 py-2 rounded-btn transition"
+              >
+                <Trash2 className="w-4 h-4" /> Delete Phase
+              </button>
+              <button onClick={() => setViewingPhase(null)} className="kpmg-btn-secondary text-sm px-5 py-2.5">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

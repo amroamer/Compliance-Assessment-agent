@@ -43,13 +43,22 @@
     "entities": "Entities",
     "workload": "Workload",
     "assessments": "Assessments",
+    "entityProfiles": "Entity Profiles",
     "assessedEntities": "Assessed Entities",
-    "entitiesList": "Assessed Entities",
     "llmModels": "LLM Models",
     "users": "Users",
     "cycleSettings": "Assessment Cycles",
+    "phaseTemplates": "Phase Templates",
     "regEntities": "Regulatory Entities",
-    "frameworks": "Frameworks"
+    "frameworks": "Frameworks",
+    "departments": "Departments"
+  },
+  "sidebar": {
+    "overview": "Overview",
+    "assessments": "Assessments",
+    "configuration": "Configuration",
+    "dataManagement": "Data Management",
+    "system": "System"
   },
   "dashboard": {
     "welcome": "Welcome back",

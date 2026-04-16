@@ -22,6 +22,9 @@ from app.api.assessment_engine import router as engine_router
 from app.api.ai_products import router as ai_products_router
 from app.api.ai_assessment import router as ai_assessment_router
 from app.api.framework_docs import router as fw_docs_router
+from app.api.departments import router as departments_router
+from app.api.cycle_phases import router as cycle_phases_router
+from app.api.regulator_feedback import router as regulator_feedback_router
 from app.config import settings
 from app.core.security import get_password_hash
 from app.database import async_session, engine, Base
@@ -221,10 +224,31 @@ async def seed_scales():
         await db.commit()
 
 
+async def _run_migrations(conn):
+    """Add columns to existing tables that create_all won't alter."""
+    from sqlalchemy import text
+    migrations = [
+        "ALTER TABLE assessment_instances ADD COLUMN IF NOT EXISTS current_phase_id UUID REFERENCES assessment_cycle_phases(id) ON DELETE SET NULL",
+        # Backfill: set Phase 1 for existing instances with NULL current_phase_id whose cycle has phases
+        """UPDATE assessment_instances SET current_phase_id = (
+            SELECT acp.id FROM assessment_cycle_phases acp
+            WHERE acp.cycle_id = assessment_instances.cycle_id
+            ORDER BY acp.sort_order ASC LIMIT 1
+        ) WHERE current_phase_id IS NULL AND EXISTS (
+            SELECT 1 FROM assessment_cycle_phases WHERE cycle_id = assessment_instances.cycle_id
+        )""",
+    ]
+    for sql in migrations:
+        try:
+            await conn.execute(text(sql))
+        except Exception:
+            pass  # Column may already exist or table may not exist yet
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await _run_migrations(conn)
     await seed_admin()
     # Seed functions below only run on first-time setup.
     # They have issues with existing data — configure via UI instead.
@@ -264,6 +288,9 @@ app.include_router(engine_router)
 app.include_router(ai_products_router)
 app.include_router(ai_assessment_router)
 app.include_router(fw_docs_router)
+app.include_router(departments_router)
+app.include_router(cycle_phases_router)
+app.include_router(regulator_feedback_router)
 
 
 @app.get("/api/health")
