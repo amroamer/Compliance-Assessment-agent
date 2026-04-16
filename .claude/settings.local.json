@@ -116,7 +116,21 @@
       "Bash(curl -s -X POST http://localhost:4201/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@kpmg.com\",\"password\":\"Admin123!\"}')",
       "Bash(python -m pytest tests/test_hierarchy.py -v --tb=short)",
       "Bash(python -m pytest tests/ -v --tb=short)",
-      "Bash(python -m pytest tests/ -v --tb=no)"
+      "Bash(python -m pytest tests/ -v --tb=no)",
+      "Bash(find /c/projects/AI-Badges/frontend/src -type f \\\\\\( -name \"*.tsx\" -o -name \"*.ts\" \\\\\\) -exec grep -l \"department\\\\|Department\" {} \\\\;)",
+      "Bash(grep -n \"department\" /c/projects/AI-Badges/frontend/src/app/assessments/[instanceId]/page.tsx)",
+      "Bash(curl -s http://localhost:4201/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@kpmg.com\",\"password\":\"Admin123!\"}')",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'Created: {d[\\\\\"created\\\\\"]} phases'\\); [print\\(f'  Phase {p[\\\\\"phase_number\\\\\"]}: {p[\\\\\"name\\\\\"]}'\\) for p in d['phases']]\")",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(node scripts/capture_screenshots.js)",
+      "Bash(npm list:*)",
+      "Bash(node scripts/generate_walkthrough.js)",
+      "Read(//c/Users/amroa/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/b2572c9f-3ec7-4f77-b49e-d464caf8773a/eebff13f-19ca-4f4f-a0ad-2425cb8d60ab/skills/docx/**)",
+      "Bash(python scripts/office/validate.py \"C:/Users/amroa/app-walkthrough/Compliance_Assessment_Platform_Walkthrough.docx\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:4200/login)",
+      "Bash(python migrate.py --db-url \"postgresql://aibadges:aibadges@localhost:5432/aibadges\" --check-only)",
+      "Bash(grep -v \"^\\\\\\\\\\\\\\\\restrict\")",
+      "Bash(ls -la backend/scripts/migration_*.sql backend/scripts/migrate.py)"
     ]
   }
 }
