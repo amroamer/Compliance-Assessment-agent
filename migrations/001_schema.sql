@@ -1,11 +1,3 @@
--- =============================================================
--- Compliance Assessment Platform — Schema Migration
--- Generated: 2026-04-17
---
--- Creates all 47 tables, constraints, indexes, and FKs.
--- Safe to re-run: uses IF NOT EXISTS throughout.
--- =============================================================
-
 --
 -- PostgreSQL database dump
 --
@@ -33,7 +25,7 @@ SET default_table_access_method = heap;
 -- Name: aggregation_rules; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.aggregation_rules (
+CREATE TABLE public.aggregation_rules (
     id uuid NOT NULL,
     framework_id uuid NOT NULL,
     parent_node_type_id uuid NOT NULL,
@@ -52,7 +44,7 @@ CREATE TABLE IF NOT EXISTS public.aggregation_rules (
 -- Name: ai_assessment_logs; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.ai_assessment_logs (
+CREATE TABLE public.ai_assessment_logs (
     id uuid NOT NULL,
     instance_id uuid NOT NULL,
     node_id uuid NOT NULL,
@@ -74,7 +66,7 @@ CREATE TABLE IF NOT EXISTS public.ai_assessment_logs (
 -- Name: ai_products; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.ai_products (
+CREATE TABLE public.ai_products (
     id uuid NOT NULL,
     assessed_entity_id uuid NOT NULL,
     name character varying(500) NOT NULL,
@@ -102,7 +94,7 @@ CREATE TABLE IF NOT EXISTS public.ai_products (
 -- Name: assessed_entities; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessed_entities (
+CREATE TABLE public.assessed_entities (
     id uuid NOT NULL,
     name character varying(500) NOT NULL,
     name_ar character varying(500),
@@ -130,7 +122,7 @@ CREATE TABLE IF NOT EXISTS public.assessed_entities (
 -- Name: assessment_cycle_configs; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_cycle_configs (
+CREATE TABLE public.assessment_cycle_configs (
     id uuid NOT NULL,
     framework_id uuid NOT NULL,
     cycle_name character varying(255) NOT NULL,
@@ -149,7 +141,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_cycle_configs (
 -- Name: assessment_cycle_phase_log; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_cycle_phase_log (
+CREATE TABLE public.assessment_cycle_phase_log (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     cycle_id uuid NOT NULL,
     from_phase_id uuid,
@@ -164,7 +156,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_cycle_phase_log (
 -- Name: assessment_cycle_phases; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_cycle_phases (
+CREATE TABLE public.assessment_cycle_phases (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     cycle_id uuid NOT NULL,
     phase_number integer NOT NULL,
@@ -199,7 +191,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_cycle_phases (
 -- Name: assessment_cycles; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_cycles (
+CREATE TABLE public.assessment_cycles (
     id uuid NOT NULL,
     client_id uuid NOT NULL,
     framework_type character varying(20) NOT NULL,
@@ -221,7 +213,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_cycles (
 -- Name: assessment_evidence; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_evidence (
+CREATE TABLE public.assessment_evidence (
     id uuid NOT NULL,
     response_id uuid NOT NULL,
     file_name character varying(500) NOT NULL,
@@ -243,7 +235,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_evidence (
 -- Name: assessment_form_fields; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_form_fields (
+CREATE TABLE public.assessment_form_fields (
     id uuid NOT NULL,
     template_id uuid NOT NULL,
     field_key character varying(50) NOT NULL,
@@ -263,7 +255,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_form_fields (
 -- Name: assessment_form_templates; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_form_templates (
+CREATE TABLE public.assessment_form_templates (
     id uuid NOT NULL,
     framework_id uuid NOT NULL,
     node_type_id uuid NOT NULL,
@@ -279,7 +271,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_form_templates (
 -- Name: assessment_instances; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_instances (
+CREATE TABLE public.assessment_instances (
     id uuid NOT NULL,
     cycle_id uuid NOT NULL,
     framework_id uuid NOT NULL,
@@ -309,7 +301,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_instances (
 -- Name: assessment_node_scores; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_node_scores (
+CREATE TABLE public.assessment_node_scores (
     id uuid NOT NULL,
     instance_id uuid NOT NULL,
     node_id uuid NOT NULL,
@@ -327,7 +319,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_node_scores (
 -- Name: assessment_phase_log; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_phase_log (
+CREATE TABLE public.assessment_phase_log (
     id uuid NOT NULL,
     instance_id uuid NOT NULL,
     from_phase_id uuid,
@@ -342,7 +334,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_phase_log (
 -- Name: assessment_response_history; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_response_history (
+CREATE TABLE public.assessment_response_history (
     id uuid NOT NULL,
     response_id uuid NOT NULL,
     response_data jsonb NOT NULL,
@@ -362,7 +354,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_response_history (
 -- Name: assessment_responses; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_responses (
+CREATE TABLE public.assessment_responses (
     id uuid NOT NULL,
     instance_id uuid NOT NULL,
     node_id uuid,
@@ -386,7 +378,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_responses (
 -- Name: assessment_scale_levels; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_scale_levels (
+CREATE TABLE public.assessment_scale_levels (
     id uuid NOT NULL,
     scale_id uuid NOT NULL,
     value numeric(10,2) NOT NULL,
@@ -405,7 +397,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_scale_levels (
 -- Name: assessment_scales; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_scales (
+CREATE TABLE public.assessment_scales (
     id uuid NOT NULL,
     framework_id uuid NOT NULL,
     name character varying(255) NOT NULL,
@@ -428,7 +420,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_scales (
 -- Name: assessment_template_scales; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.assessment_template_scales (
+CREATE TABLE public.assessment_template_scales (
     template_id uuid NOT NULL,
     scale_id uuid NOT NULL
 );
@@ -438,7 +430,7 @@ CREATE TABLE IF NOT EXISTS public.assessment_template_scales (
 -- Name: audit_logs; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.audit_logs (
+CREATE TABLE public.audit_logs (
     id uuid NOT NULL,
     user_id uuid NOT NULL,
     action character varying(20) NOT NULL,
@@ -454,7 +446,7 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 -- Name: badge_assignments; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.badge_assignments (
+CREATE TABLE public.badge_assignments (
     id uuid NOT NULL,
     entity_id uuid NOT NULL,
     tier smallint NOT NULL,
@@ -468,7 +460,7 @@ CREATE TABLE IF NOT EXISTS public.badge_assignments (
 -- Name: compliance_frameworks; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.compliance_frameworks (
+CREATE TABLE public.compliance_frameworks (
     id uuid NOT NULL,
     name character varying(255) NOT NULL,
     abbreviation character varying(50) NOT NULL,
@@ -488,7 +480,7 @@ CREATE TABLE IF NOT EXISTS public.compliance_frameworks (
 -- Name: customer_info; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.customer_info (
+CREATE TABLE public.customer_info (
     id uuid NOT NULL,
     product_id uuid NOT NULL,
     target_audience jsonb,
@@ -503,7 +495,7 @@ CREATE TABLE IF NOT EXISTS public.customer_info (
 -- Name: documents; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.documents (
+CREATE TABLE public.documents (
     id uuid NOT NULL,
     assessment_id uuid NOT NULL,
     sub_requirement_id character varying(20),
@@ -523,7 +515,7 @@ CREATE TABLE IF NOT EXISTS public.documents (
 -- Name: domain_assessments; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.domain_assessments (
+CREATE TABLE public.domain_assessments (
     id uuid NOT NULL,
     product_id uuid NOT NULL,
     domain_id smallint NOT NULL,
@@ -537,7 +529,7 @@ CREATE TABLE IF NOT EXISTS public.domain_assessments (
 -- Name: entities; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.entities (
+CREATE TABLE public.entities (
     id uuid NOT NULL,
     name_ar character varying(500) NOT NULL,
     name_en character varying(500) NOT NULL,
@@ -559,7 +551,7 @@ CREATE TABLE IF NOT EXISTS public.entities (
 -- Name: entity_consultants; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.entity_consultants (
+CREATE TABLE public.entity_consultants (
     entity_id uuid NOT NULL,
     user_id uuid NOT NULL,
     assigned_at timestamp with time zone NOT NULL
@@ -570,7 +562,7 @@ CREATE TABLE IF NOT EXISTS public.entity_consultants (
 -- Name: entity_department_users; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.entity_department_users (
+CREATE TABLE public.entity_department_users (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     department_id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -584,7 +576,7 @@ CREATE TABLE IF NOT EXISTS public.entity_department_users (
 -- Name: entity_departments; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.entity_departments (
+CREATE TABLE public.entity_departments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     assessed_entity_id uuid NOT NULL,
     name character varying(255) NOT NULL,
@@ -606,7 +598,7 @@ CREATE TABLE IF NOT EXISTS public.entity_departments (
 -- Name: entity_frameworks; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.entity_frameworks (
+CREATE TABLE public.entity_frameworks (
     id uuid NOT NULL,
     entity_id uuid NOT NULL,
     framework character varying(20) NOT NULL,
@@ -618,7 +610,7 @@ CREATE TABLE IF NOT EXISTS public.entity_frameworks (
 -- Name: entity_regulatory_entities; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.entity_regulatory_entities (
+CREATE TABLE public.entity_regulatory_entities (
     entity_id uuid NOT NULL,
     regulatory_entity_id uuid NOT NULL
 );
@@ -628,7 +620,7 @@ CREATE TABLE IF NOT EXISTS public.entity_regulatory_entities (
 -- Name: framework_documents; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.framework_documents (
+CREATE TABLE public.framework_documents (
     id uuid NOT NULL,
     framework_id uuid NOT NULL,
     file_name character varying(500) NOT NULL,
@@ -645,7 +637,7 @@ CREATE TABLE IF NOT EXISTS public.framework_documents (
 -- Name: framework_nodes; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.framework_nodes (
+CREATE TABLE public.framework_nodes (
     id uuid NOT NULL,
     framework_id uuid NOT NULL,
     parent_id uuid,
@@ -681,7 +673,7 @@ CREATE TABLE IF NOT EXISTS public.framework_nodes (
 -- Name: llm_models; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.llm_models (
+CREATE TABLE public.llm_models (
     id uuid NOT NULL,
     name character varying(255) NOT NULL,
     provider character varying(20) NOT NULL,
@@ -706,7 +698,7 @@ CREATE TABLE IF NOT EXISTS public.llm_models (
 -- Name: naii_assessments; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.naii_assessments (
+CREATE TABLE public.naii_assessments (
     id uuid NOT NULL,
     entity_id uuid NOT NULL,
     assessment_year smallint NOT NULL,
@@ -725,7 +717,7 @@ CREATE TABLE IF NOT EXISTS public.naii_assessments (
 -- Name: naii_documents; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.naii_documents (
+CREATE TABLE public.naii_documents (
     id uuid NOT NULL,
     assessment_id uuid NOT NULL,
     domain_id character varying(20),
@@ -745,7 +737,7 @@ CREATE TABLE IF NOT EXISTS public.naii_documents (
 -- Name: naii_domain_responses; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.naii_domain_responses (
+CREATE TABLE public.naii_domain_responses (
     id uuid NOT NULL,
     assessment_id uuid NOT NULL,
     domain_id character varying(20) NOT NULL,
@@ -761,7 +753,7 @@ CREATE TABLE IF NOT EXISTS public.naii_domain_responses (
 -- Name: naii_scores; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.naii_scores (
+CREATE TABLE public.naii_scores (
     id uuid NOT NULL,
     assessment_id uuid NOT NULL,
     level character varying(20) NOT NULL,
@@ -776,7 +768,7 @@ CREATE TABLE IF NOT EXISTS public.naii_scores (
 -- Name: node_assignments; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.node_assignments (
+CREATE TABLE public.node_assignments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     assessed_entity_id uuid NOT NULL,
     framework_id uuid NOT NULL,
@@ -793,7 +785,7 @@ CREATE TABLE IF NOT EXISTS public.node_assignments (
 -- Name: node_types; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.node_types (
+CREATE TABLE public.node_types (
     id uuid NOT NULL,
     framework_id uuid NOT NULL,
     name character varying(50) NOT NULL,
@@ -810,7 +802,7 @@ CREATE TABLE IF NOT EXISTS public.node_types (
 -- Name: phase_templates; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.phase_templates (
+CREATE TABLE public.phase_templates (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name character varying(255) NOT NULL,
     name_ar character varying(255),
@@ -827,7 +819,7 @@ CREATE TABLE IF NOT EXISTS public.phase_templates (
 -- Name: products; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.products (
+CREATE TABLE public.products (
     id uuid NOT NULL,
     entity_id uuid NOT NULL,
     name_ar character varying(500),
@@ -850,7 +842,7 @@ CREATE TABLE IF NOT EXISTS public.products (
 -- Name: regulator_evidence; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.regulator_evidence (
+CREATE TABLE public.regulator_evidence (
     id uuid NOT NULL,
     feedback_id uuid NOT NULL,
     file_name character varying(500) NOT NULL,
@@ -867,7 +859,7 @@ CREATE TABLE IF NOT EXISTS public.regulator_evidence (
 -- Name: regulator_feedback; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.regulator_feedback (
+CREATE TABLE public.regulator_feedback (
     id uuid NOT NULL,
     instance_id uuid NOT NULL,
     node_id uuid NOT NULL,
@@ -896,7 +888,7 @@ CREATE TABLE IF NOT EXISTS public.regulator_feedback (
 -- Name: regulatory_entities; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.regulatory_entities (
+CREATE TABLE public.regulatory_entities (
     id uuid NOT NULL,
     name character varying(255) NOT NULL,
     name_ar character varying(255),
@@ -914,7 +906,7 @@ CREATE TABLE IF NOT EXISTS public.regulatory_entities (
 -- Name: sub_requirement_responses; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.sub_requirement_responses (
+CREATE TABLE public.sub_requirement_responses (
     id uuid NOT NULL,
     assessment_id uuid NOT NULL,
     sub_requirement_id character varying(20) NOT NULL,
@@ -928,7 +920,7 @@ CREATE TABLE IF NOT EXISTS public.sub_requirement_responses (
 -- Name: users; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE IF NOT EXISTS public.users (
+CREATE TABLE public.users (
     id uuid NOT NULL,
     email character varying(255) NOT NULL,
     name character varying(255) NOT NULL,
@@ -1505,217 +1497,217 @@ ALTER TABLE ONLY public.users
 -- Name: idx_assessment_instances_framework; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_assessment_instances_framework ON public.assessment_instances USING btree (framework_id);
+CREATE INDEX idx_assessment_instances_framework ON public.assessment_instances USING btree (framework_id);
 
 
 --
 -- Name: idx_cycle_phases_cycle; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_cycle_phases_cycle ON public.assessment_cycle_phases USING btree (cycle_id);
+CREATE INDEX idx_cycle_phases_cycle ON public.assessment_cycle_phases USING btree (cycle_id);
 
 
 --
 -- Name: idx_cycle_phases_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_cycle_phases_status ON public.assessment_cycle_phases USING btree (cycle_id, status);
+CREATE INDEX idx_cycle_phases_status ON public.assessment_cycle_phases USING btree (cycle_id, status);
 
 
 --
 -- Name: idx_dept_users_department; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_dept_users_department ON public.entity_department_users USING btree (department_id);
+CREATE INDEX idx_dept_users_department ON public.entity_department_users USING btree (department_id);
 
 
 --
 -- Name: idx_dept_users_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_dept_users_user ON public.entity_department_users USING btree (user_id);
+CREATE INDEX idx_dept_users_user ON public.entity_department_users USING btree (user_id);
 
 
 --
 -- Name: idx_entity_departments_entity; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_entity_departments_entity ON public.entity_departments USING btree (assessed_entity_id);
+CREATE INDEX idx_entity_departments_entity ON public.entity_departments USING btree (assessed_entity_id);
 
 
 --
 -- Name: idx_framework_nodes_framework_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_framework_nodes_framework_id ON public.framework_nodes USING btree (framework_id);
+CREATE INDEX idx_framework_nodes_framework_id ON public.framework_nodes USING btree (framework_id);
 
 
 --
 -- Name: idx_framework_nodes_parent_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_framework_nodes_parent_id ON public.framework_nodes USING btree (parent_id);
+CREATE INDEX idx_framework_nodes_parent_id ON public.framework_nodes USING btree (parent_id);
 
 
 --
 -- Name: idx_framework_nodes_path; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_framework_nodes_path ON public.framework_nodes USING btree (path);
+CREATE INDEX idx_framework_nodes_path ON public.framework_nodes USING btree (path);
 
 
 --
 -- Name: idx_framework_nodes_sort; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_framework_nodes_sort ON public.framework_nodes USING btree (framework_id, parent_id, sort_order);
+CREATE INDEX idx_framework_nodes_sort ON public.framework_nodes USING btree (framework_id, parent_id, sort_order);
 
 
 --
 -- Name: idx_node_assignments_department; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_node_assignments_department ON public.node_assignments USING btree (department_id);
+CREATE INDEX idx_node_assignments_department ON public.node_assignments USING btree (department_id);
 
 
 --
 -- Name: idx_node_assignments_entity_framework; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_node_assignments_entity_framework ON public.node_assignments USING btree (assessed_entity_id, framework_id);
+CREATE INDEX idx_node_assignments_entity_framework ON public.node_assignments USING btree (assessed_entity_id, framework_id);
 
 
 --
 -- Name: idx_node_assignments_node; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_node_assignments_node ON public.node_assignments USING btree (node_id);
+CREATE INDEX idx_node_assignments_node ON public.node_assignments USING btree (node_id);
 
 
 --
 -- Name: idx_node_assignments_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_node_assignments_user ON public.node_assignments USING btree (assigned_user_id);
+CREATE INDEX idx_node_assignments_user ON public.node_assignments USING btree (assigned_user_id);
 
 
 --
 -- Name: idx_phase_log_cycle; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_phase_log_cycle ON public.assessment_cycle_phase_log USING btree (cycle_id);
+CREATE INDEX idx_phase_log_cycle ON public.assessment_cycle_phase_log USING btree (cycle_id);
 
 
 --
 -- Name: idx_phase_log_instance; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_phase_log_instance ON public.assessment_phase_log USING btree (instance_id);
+CREATE INDEX idx_phase_log_instance ON public.assessment_phase_log USING btree (instance_id);
 
 
 --
 -- Name: idx_reg_evidence_feedback; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_reg_evidence_feedback ON public.regulator_evidence USING btree (feedback_id);
+CREATE INDEX idx_reg_evidence_feedback ON public.regulator_evidence USING btree (feedback_id);
 
 
 --
 -- Name: idx_reg_feedback_agreement; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_reg_feedback_agreement ON public.regulator_feedback USING btree (instance_id, agreement_status);
+CREATE INDEX idx_reg_feedback_agreement ON public.regulator_feedback USING btree (instance_id, agreement_status);
 
 
 --
 -- Name: idx_reg_feedback_correction; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_reg_feedback_correction ON public.regulator_feedback USING btree (instance_id, correction_status);
+CREATE INDEX idx_reg_feedback_correction ON public.regulator_feedback USING btree (instance_id, correction_status);
 
 
 --
 -- Name: idx_reg_feedback_instance; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_reg_feedback_instance ON public.regulator_feedback USING btree (instance_id);
+CREATE INDEX idx_reg_feedback_instance ON public.regulator_feedback USING btree (instance_id);
 
 
 --
 -- Name: idx_reg_feedback_instance_phase; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_reg_feedback_instance_phase ON public.regulator_feedback USING btree (instance_id, phase_id);
+CREATE INDEX idx_reg_feedback_instance_phase ON public.regulator_feedback USING btree (instance_id, phase_id);
 
 
 --
 -- Name: idx_reg_feedback_node; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_reg_feedback_node ON public.regulator_feedback USING btree (node_id);
+CREATE INDEX idx_reg_feedback_node ON public.regulator_feedback USING btree (node_id);
 
 
 --
 -- Name: idx_reg_feedback_priority; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_reg_feedback_priority ON public.regulator_feedback USING btree (instance_id, priority);
+CREATE INDEX idx_reg_feedback_priority ON public.regulator_feedback USING btree (instance_id, priority);
 
 
 --
 -- Name: idx_response_history; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_response_history ON public.assessment_response_history USING btree (response_id, changed_at);
+CREATE INDEX idx_response_history ON public.assessment_response_history USING btree (response_id, changed_at);
 
 
 --
 -- Name: idx_response_product; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX IF NOT EXISTS idx_response_product ON public.assessment_responses USING btree (ai_product_id);
+CREATE INDEX idx_response_product ON public.assessment_responses USING btree (ai_product_id);
 
 
 --
 -- Name: idx_unique_assessment_per_subject; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_assessment_per_subject ON public.assessment_instances USING btree (cycle_id, assessed_entity_id, COALESCE(ai_product_id, '00000000-0000-0000-0000-000000000000'::uuid));
+CREATE UNIQUE INDEX idx_unique_assessment_per_subject ON public.assessment_instances USING btree (cycle_id, assessed_entity_id, COALESCE(ai_product_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 
 --
 -- Name: ix_users_email; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON public.users USING btree (email);
+CREATE UNIQUE INDEX ix_users_email ON public.users USING btree (email);
 
 
 --
 -- Name: uq_response_instance_node_null; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_response_instance_node_null ON public.assessment_responses USING btree (instance_id, node_id) WHERE (ai_product_id IS NULL);
+CREATE UNIQUE INDEX uq_response_instance_node_null ON public.assessment_responses USING btree (instance_id, node_id) WHERE (ai_product_id IS NULL);
 
 
 --
 -- Name: uq_response_instance_node_product; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_response_instance_node_product ON public.assessment_responses USING btree (instance_id, node_id, ai_product_id) WHERE (ai_product_id IS NOT NULL);
+CREATE UNIQUE INDEX uq_response_instance_node_product ON public.assessment_responses USING btree (instance_id, node_id, ai_product_id) WHERE (ai_product_id IS NOT NULL);
 
 
 --
 -- Name: uq_score_instance_node_null; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_score_instance_node_null ON public.assessment_node_scores USING btree (instance_id, node_id) WHERE (ai_product_id IS NULL);
+CREATE UNIQUE INDEX uq_score_instance_node_null ON public.assessment_node_scores USING btree (instance_id, node_id) WHERE (ai_product_id IS NULL);
 
 
 --
 -- Name: uq_score_instance_node_product; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_score_instance_node_product ON public.assessment_node_scores USING btree (instance_id, node_id, ai_product_id) WHERE (ai_product_id IS NOT NULL);
+CREATE UNIQUE INDEX uq_score_instance_node_product ON public.assessment_node_scores USING btree (instance_id, node_id, ai_product_id) WHERE (ai_product_id IS NOT NULL);
 
 
 --
