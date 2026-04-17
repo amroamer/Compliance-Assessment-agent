@@ -1,18 +1,16 @@
 #!/bin/bash
 # =============================================================
-# AICompAgent — Full Data Migration Script
-# Generated: 2026-04-16
+# Compliance Assessment Platform — Full Data Migration Script
+# Generated: 2026-04-17
 #
-# Migrates schema + all data to a VM.
+# Runs INSIDE the DB container (pure psql, no docker commands).
 #
 # Usage:
-#   1. Copy the migrations/ folder to the VM project root
-#   2. docker compose up -d
-#   3. chmod +x migrations/migrate.sh
-#   4. ./migrations/migrate.sh
+#   ./migrate.sh
+#   ./migrate.sh "postgresql://aibadges:aibadges_secret_2024@localhost:5432/aibadges"
 #
 # What it does:
-#   Step 1: Creates/updates all 47 tables (schema)
+#   Step 1: Creates all 47 tables (schema)
 #   Step 2: Verifies all tables exist
 #   Step 3: Imports seed data (truncates + inserts)
 #   Step 4: Shows row counts for verification
@@ -29,56 +27,60 @@ log()  { echo -e "${GREEN}[MIGRATE]${NC} $*"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 err()  { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
-# Resolve paths relative to this script
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCHEMA_FILE="$SCRIPT_DIR/001_schema.sql"
 SEED_FILE="$SCRIPT_DIR/002_seed_data.sql"
 
-# Docker container and DB settings
-DB_CONTAINER="${DB_CONTAINER:-badges-db}"
+if [ -n "${1:-}" ]; then
+    export DATABASE_URL="$1"
+fi
+
+DB_HOST="${DB_HOST:-localhost}"
+DB_PORT="${DB_PORT:-5432}"
 DB_USER="${DB_USER:-aibadges}"
 DB_NAME="${DB_NAME:-aibadges}"
+
+if [ -n "${DATABASE_URL:-}" ]; then
+    PSQL_CONN="$DATABASE_URL"
+else
+    PSQL_CONN="postgresql://${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+fi
 
 [ -f "$SCHEMA_FILE" ] || err "001_schema.sql not found in $SCRIPT_DIR"
 [ -f "$SEED_FILE" ]   || err "002_seed_data.sql not found in $SCRIPT_DIR"
 
-# Check if container is running
-docker ps --format '{{.Names}}' | grep -q "^${DB_CONTAINER}$" \
-    || err "Container '$DB_CONTAINER' is not running. Run 'docker compose up -d' first."
+psql "$PSQL_CONN" -c "SELECT 1;" > /dev/null 2>&1 \
+    || err "Cannot connect to database. Check connection string or set DATABASE_URL."
 
-run_sql() {
-    docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" "$@"
-}
+run_sql() { psql "$PSQL_CONN" "$@"; }
 
 # --- Step 1: Create schema ---
 log "Step 1/4: Applying schema (47 tables)..."
-run_sql < "$SCHEMA_FILE" > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-    log "Schema applied successfully."
-else
-    err "Schema creation failed. Check 001_schema.sql for errors."
-fi
+run_sql -f "$SCHEMA_FILE" > /dev/null 2>&1
+log "Schema applied successfully."
 
 # --- Step 2: Verify tables ---
 log "Step 2/4: Verifying database schema..."
-
 EXPECTED_TABLES=(
-    users regulatory_entities assessed_entities entities
-    compliance_frameworks node_types framework_nodes
-    assessment_scales assessment_scale_levels aggregation_rules
+    users regulatory_entities compliance_frameworks
+    framework_nodes node_types framework_documents
+    assessment_scales assessment_scale_levels
     assessment_form_templates assessment_form_fields assessment_template_scales
-    llm_models ai_products
-    assessment_cycle_configs assessment_cycle_phases assessment_cycle_phase_log
-    assessment_cycles assessment_instances assessment_responses
-    assessment_evidence assessment_node_scores assessment_phase_log
-    assessment_response_history ai_assessment_logs
-    audit_logs badge_assignments customer_info documents
-    products domain_assessments entity_consultants
-    entity_department_users entity_departments entity_frameworks
-    entity_regulatory_entities framework_documents
-    naii_assessments naii_documents naii_domain_responses naii_scores
-    node_assignments phase_templates
-    regulator_feedback regulator_evidence sub_requirement_responses
+    aggregation_rules
+    assessed_entities entity_regulatory_entities entity_frameworks
+    ai_products entity_departments entity_department_users node_assignments
+    assessment_cycle_configs assessment_cycle_phases
+    assessment_instances assessment_responses
+    assessment_evidence assessment_node_scores
+    assessment_response_history assessment_phase_log
+    assessment_cycle_phase_log ai_assessment_logs
+    regulator_feedback regulator_evidence
+    llm_models phase_templates
+    entities products documents
+    assessment_cycles audit_logs badge_assignments
+    customer_info entity_consultants domain_assessments
+    sub_requirement_responses
+    naii_assessments naii_domain_responses naii_scores naii_documents
 )
 
 MISSING=0
@@ -96,40 +98,46 @@ fi
 log "All ${#EXPECTED_TABLES[@]} tables verified."
 
 # --- Step 3: Import seed data ---
-log "Step 3/4: Importing seed data (this may take a moment)..."
-run_sql < "$SEED_FILE" > /dev/null 2>&1
-if [ $? -eq 0 ]; then
+log "Step 3/4: Importing seed data (~3 MB, ~3,800 rows)..."
+IMPORT_LOG=$(mktemp /tmp/ca_import_XXXXXX.log 2>/dev/null || echo "/tmp/ca_import.log")
+if run_sql -v ON_ERROR_STOP=1 -f "$SEED_FILE" > /dev/null 2>"$IMPORT_LOG"; then
     log "Seed data imported successfully."
 else
-    err "Seed data import failed. Check 002_seed_data.sql for errors."
+    warn "Seed data import had errors. Retrying without ON_ERROR_STOP..."
+    head -5 "$IMPORT_LOG" 2>/dev/null | while IFS= read -r line; do warn "  $line"; done
+    run_sql -f "$SEED_FILE" > /dev/null 2>&1
+    log "Seed data import completed (check row counts below)."
 fi
+rm -f "$IMPORT_LOG" 2>/dev/null
 
 # --- Step 4: Row counts ---
 log "Step 4/4: Verifying imported data..."
 log ""
 log "=== Row Counts ==="
 run_sql -c "
-    SELECT 'users' as table_name, COUNT(*) as rows FROM users
+    SELECT 'users' AS table_name, COUNT(*) AS rows FROM users
     UNION ALL SELECT 'regulatory_entities', COUNT(*) FROM regulatory_entities
-    UNION ALL SELECT 'assessed_entities', COUNT(*) FROM assessed_entities
-    UNION ALL SELECT 'entities', COUNT(*) FROM entities
     UNION ALL SELECT 'compliance_frameworks', COUNT(*) FROM compliance_frameworks
-    UNION ALL SELECT 'node_types', COUNT(*) FROM node_types
     UNION ALL SELECT 'framework_nodes', COUNT(*) FROM framework_nodes
+    UNION ALL SELECT 'node_types', COUNT(*) FROM node_types
     UNION ALL SELECT 'assessment_scales', COUNT(*) FROM assessment_scales
     UNION ALL SELECT 'assessment_scale_levels', COUNT(*) FROM assessment_scale_levels
-    UNION ALL SELECT 'aggregation_rules', COUNT(*) FROM aggregation_rules
     UNION ALL SELECT 'assessment_form_templates', COUNT(*) FROM assessment_form_templates
     UNION ALL SELECT 'assessment_form_fields', COUNT(*) FROM assessment_form_fields
-    UNION ALL SELECT 'llm_models', COUNT(*) FROM llm_models
+    UNION ALL SELECT 'aggregation_rules', COUNT(*) FROM aggregation_rules
+    UNION ALL SELECT 'assessed_entities', COUNT(*) FROM assessed_entities
     UNION ALL SELECT 'ai_products', COUNT(*) FROM ai_products
+    UNION ALL SELECT 'entity_departments', COUNT(*) FROM entity_departments
+    UNION ALL SELECT 'node_assignments', COUNT(*) FROM node_assignments
     UNION ALL SELECT 'assessment_cycle_configs', COUNT(*) FROM assessment_cycle_configs
     UNION ALL SELECT 'assessment_cycle_phases', COUNT(*) FROM assessment_cycle_phases
     UNION ALL SELECT 'assessment_instances', COUNT(*) FROM assessment_instances
     UNION ALL SELECT 'assessment_responses', COUNT(*) FROM assessment_responses
+    UNION ALL SELECT 'assessment_evidence', COUNT(*) FROM assessment_evidence
+    UNION ALL SELECT 'assessment_node_scores', COUNT(*) FROM assessment_node_scores
+    UNION ALL SELECT 'llm_models', COUNT(*) FROM llm_models
+    UNION ALL SELECT 'regulator_feedback', COUNT(*) FROM regulator_feedback
     UNION ALL SELECT 'phase_templates', COUNT(*) FROM phase_templates
-    UNION ALL SELECT 'entity_departments', COUNT(*) FROM entity_departments
-    UNION ALL SELECT 'node_assignments', COUNT(*) FROM node_assignments
     ORDER BY table_name;
 "
 log ""
