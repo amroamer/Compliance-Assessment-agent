@@ -742,10 +742,20 @@ async def import_frameworks_excel(file: UploadFile = File(...), preview: bool = 
         return {"total_in_file": len(rows), "new_items": [{"name": r.get("name", ""), "abbreviation": r["abbreviation"]} for r in new_rows],
                 "duplicates": [{"name": r.get("name", ""), "abbreviation": r["abbreviation"]} for r in dup_rows], "will_import": len(new_rows), "will_skip": len(dup_rows)}
     reg_entities = {re.abbreviation: re.id for re in (await db.execute(select(RegulatoryEntity))).scalars().all()}
+    # Validate regulatory entities before inserting
+    missing_reg = []
+    for r in new_rows:
+        abbr = r.get("regulatory_entity_abbreviation")
+        if abbr and abbr not in reg_entities:
+            missing_reg.append(f"'{r['abbreviation']}' references regulatory entity '{abbr}' which does not exist")
+        elif not abbr:
+            missing_reg.append(f"'{r['abbreviation']}' is missing a regulatory entity")
+    if missing_reg:
+        raise HTTPException(status_code=400, detail=f"Import aborted — {'; '.join(missing_reg)}. Please create the regulatory entities first or fix the Excel file.")
     created = 0
     try:
         for r in new_rows:
-            reg_id = reg_entities.get(r.get("regulatory_entity_abbreviation")) if r.get("regulatory_entity_abbreviation") else None
+            reg_id = reg_entities[r["regulatory_entity_abbreviation"]]
             db.add(ComplianceFramework(name=r.get("name", ""), abbreviation=r["abbreviation"], name_ar=r.get("name_ar"),
                 description=r.get("description"), version=r.get("version"), status=r.get("status") or "Active",
                 icon=r.get("icon") or "book", entity_id=reg_id,
