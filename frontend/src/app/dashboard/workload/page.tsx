@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { Header } from "@/components/layout/Header";
+import { useLocale } from "@/providers/LocaleProvider";
 import { Users, Building2, ChevronRight } from "lucide-react";
 
 interface WorkloadItem {
@@ -21,6 +22,7 @@ interface WorkloadItem {
 
 export default function WorkloadPage() {
   const router = useRouter();
+  const { t } = useLocale();
 
   const { data: workload, isLoading } = useQuery<WorkloadItem[]>({
     queryKey: ["workload"],
@@ -29,10 +31,10 @@ export default function WorkloadPage() {
 
   return (
     <div>
-      <Header title="Consultant Workload" />
+      <Header title={t("workload.title")} />
       <div className="p-6">
         <p className="text-sm text-gray-500 mb-6">
-          Overview of entity assignments and assessment progress per consultant.
+          {t("workload.subtitle")}
         </p>
 
         {isLoading ? (
@@ -43,7 +45,7 @@ export default function WorkloadPage() {
           </div>
         ) : !workload?.length ? (
           <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400">
-            No consultants found
+            {t("workload.noConsultants")}
           </div>
         ) : (
           <div className="space-y-4">
@@ -60,12 +62,12 @@ export default function WorkloadPage() {
                     </div>
                   </div>
                   <span className="text-sm text-gray-500">
-                    {c.entity_count} {c.entity_count === 1 ? "entity" : "entities"}
+                    {c.entity_count} {c.entity_count === 1 ? t("workload.entity") : t("workload.entities")}
                   </span>
                 </div>
 
                 {c.entities.length === 0 ? (
-                  <p className="text-xs text-gray-400 pl-13">No entities assigned</p>
+                  <p className="text-xs text-gray-400 pl-13">{t("workload.noEntitiesAssigned")}</p>
                 ) : (
                   <div className="space-y-2 mt-2">
                     {c.entities.map((e) => (
@@ -77,7 +79,7 @@ export default function WorkloadPage() {
                         <div className="flex items-center gap-2">
                           <Building2 className="w-4 h-4 text-gray-400" />
                           <span className="text-sm font-medium text-gray-700">{e.name_en}</span>
-                          <span className="text-xs text-gray-400">{e.product_count} products</span>
+                          <span className="text-xs text-gray-400">{e.product_count} {t("workload.products")}</span>
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="w-24">
