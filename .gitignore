@@ -3,8 +3,25 @@ __pycache__/
 .env
 backend/uploads/*
 !backend/uploads/.gitkeep
-frontend/node_modules/
+
+# Node
+node_modules/
 frontend/.next/
+
+# Logs / OS noise
 *.log
 .DS_Store
+
+# Claude internal state
 .claude/worktrees/
+
+# Build outputs
+docs/User_Guide.docx
+
+# DB backups (keep folder, ignore dumps)
+backups/*.sql
+!backups/.gitkeep
+
+# Stray dirs created by shell typos
+frontend;C/
+unpacked/
