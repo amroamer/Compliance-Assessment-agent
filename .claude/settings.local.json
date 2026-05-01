@@ -130,7 +130,16 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:4200/login)",
       "Bash(python migrate.py --db-url \"postgresql://aibadges:aibadges@localhost:5432/aibadges\" --check-only)",
       "Bash(grep -v \"^\\\\\\\\\\\\\\\\restrict\")",
-      "Bash(ls -la backend/scripts/migration_*.sql backend/scripts/migrate.py)"
+      "Bash(ls -la backend/scripts/migration_*.sql backend/scripts/migrate.py)",
+      "Bash(python -c ' *)",
+      "Bash(python migrate.py --db-url \"postgresql://aibadges:aibadges_secret_2024@localhost:5432/aibadges_test\")",
+      "WebFetch(domain:claude.ai)",
+      "Bash(curl -s -o /dev/null -w \"settings_page_http: %{http_code}\\\\n\" http://localhost:4200/settings/llm-models)",
+      "Bash(curl -s -o /dev/null -w \"API health: %{http_code}\\\\n\" http://localhost:4200/api/health)",
+      "Bash(curl -s -o /dev/null -w \"UI root:    %{http_code}\\\\n\" http://localhost:4200/)",
+      "Bash(pandoc --track-changes=all \"C:\\\\Users\\\\amroa\\\\Downloads\\\\OD.docx\" -o \"C:\\\\Users\\\\amroa\\\\AppData\\\\Local\\\\Temp\\\\od_extract.md\")",
+      "Bash(python \"C:\\\\Users\\\\amroa\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\b2572c9f-3ec7-4f77-b49e-d464caf8773a\\\\eebff13f-19ca-4f4f-a0ad-2425cb8d60ab\\\\skills\\\\docx\\\\scripts\\\\office\\\\unpack.py\" \"C:\\\\Users\\\\amroa\\\\Downloads\\\\OD.docx\" \"C:\\\\Users\\\\amroa\\\\AppData\\\\Local\\\\Temp\\\\od_unpacked\")",
+      "Bash(python \"C:\\\\Users\\\\amroa\\\\AppData\\\\Local\\\\Temp\\\\od_import.py\")"
     ]
   }
 }
