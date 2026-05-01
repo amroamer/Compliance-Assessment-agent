@@ -222,7 +222,7 @@ export default function RegulatoryEntitiesPage() {
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-kpmg-placeholder" />
               <input type="text" placeholder="Search entities..." value={search}
-                onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-10 text-sm" />
+                onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-10 text-sm" autoComplete="off" />
             </div>
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="kpmg-input w-32 text-sm">
               <option value="">All Status</option><option value="Active">Active</option><option value="Inactive">Inactive</option>

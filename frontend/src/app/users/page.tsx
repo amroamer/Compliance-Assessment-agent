@@ -181,7 +181,7 @@ export default function UsersPage() {
         <div className="flex items-center gap-3 mb-6">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-kpmg-placeholder" />
-            <input type="text" placeholder="Search by name or email..." value={search} onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-10 text-sm" />
+            <input type="text" placeholder="Search by name or email..." value={search} onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-10 text-sm" autoComplete="off" />
           </div>
           <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="kpmg-input w-40 text-sm">
             <option value="">All Roles</option>

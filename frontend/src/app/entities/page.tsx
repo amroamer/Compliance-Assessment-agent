@@ -31,7 +31,7 @@ export default function EntitiesListPage() {
         <div className="flex items-center justify-between mb-6">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-kpmg-placeholder" />
-            <input type="text" placeholder="Search entities..." value={search} onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-11" />
+            <input type="text" placeholder="Search entities..." value={search} onChange={(e) => setSearch(e.target.value)} className="kpmg-input pl-11" autoComplete="off" />
           </div>
         </div>
 
