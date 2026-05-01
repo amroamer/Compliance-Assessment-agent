@@ -6,38 +6,45 @@ const config: Config = {
     extend: {
       colors: {
         kpmg: {
-          blue: "#00338D",
-          light: "#0091DA",
-          purple: "#483698",
-          navy: "#1A1A2E",
-          gray: "#6D6E71",
-          "light-gray": "#F5F6F8",
-          border: "#E8E9EB",
-          "input-border": "#D1D5DB",
-          placeholder: "#A0A4A8",
-          "hover-dark": "#002266",
-          "hover-bg": "#EBF4FA",
-          "focus-ring": "rgba(0,145,218,0.15)",
+          // KPMG Brand Palette (v2 redesign)
+          blue: "#00338D",          // Primary — KPMG Blue
+          "medium-blue": "#005EB8", // Primary
+          light: "#0091DA",         // Primary — KPMG Light Blue
+          violet: "#483698",        // Secondary
+          purple: "#470A68",        // Secondary — Deep Purple
+          "light-purple": "#6D2077",// Secondary
+          green: "#00A3A1",         // Secondary — KPMG Teal Green
+          navy: "#00338D",          // Alias to blue for headings
+          gray: "#3d4559",          // Body text
+          "light-gray": "#F4F6FA",  // Subtle surface
+          "card-bg": "#eaeef4",     // Card-on-card
+          border: "#E4E8EF",        // Hairline borders
+          "input-border": "#D6DCE6",
+          placeholder: "#9AA3B4",
+          "hover-dark": "#002b78",
+          "hover-bg": "#EAEEF4",
+          "focus-ring": "rgba(0,51,141,0.15)",
           "nav-hover": "rgba(255,255,255,0.06)",
         },
         badge: {
-          aware: "#C0392B",
-          adopter: "#E67E22",
-          committed: "#27AE60",
+          aware: "#C8102E",
+          adopter: "#E37222",
+          committed: "#00A3A1",
           trusted: "#0091DA",
           leader: "#00338D",
         },
         status: {
-          success: "#27AE60",
-          warning: "#E67E22",
-          error: "#C0392B",
+          success: "#00A3A1",   // KPMG Teal (replaces green)
+          warning: "#E37222",   // Softer orange
+          error: "#C8102E",     // Red
+          info: "#0091DA",
         },
       },
       fontFamily: {
-        heading: ['"Plus Jakarta Sans"', '"IBM Plex Sans Arabic"', '"Segoe UI"', "sans-serif"],
-        body: ['"DM Sans"', '"IBM Plex Sans Arabic"', '"Segoe UI"', "sans-serif"],
-        arabic: ['"IBM Plex Sans Arabic"', '"Segoe UI"', "sans-serif"],
-        mono: ['"JetBrains Mono"', '"Fira Code"', "monospace"],
+        heading: ['Arial', '"Helvetica Neue"', "Helvetica", '"IBM Plex Sans Arabic"', "sans-serif"],
+        body: ['Arial', '"Helvetica Neue"', "Helvetica", '"IBM Plex Sans Arabic"', "sans-serif"],
+        arabic: ['"Noto Sans Arabic"', '"IBM Plex Sans Arabic"', "Arial", "sans-serif"],
+        mono: ['"Roboto Mono"', '"JetBrains Mono"', '"Courier New"', "monospace"],
       },
       spacing: {
         "18": "4.5rem",
@@ -47,14 +54,15 @@ const config: Config = {
         "content": "1280px",
       },
       borderRadius: {
-        "card": "12px",
-        "btn": "8px",
-        "pill": "999px",
+        // Squared, minimal per KPMG brand (v2 redesign)
+        "card": "4px",
+        "btn": "3px",
+        "pill": "2px",
       },
       boxShadow: {
-        "card": "0 1px 3px rgba(0,0,0,0.06)",
-        "card-hover": "0 4px 12px rgba(0,0,0,0.08)",
-        "focus": "0 0 0 3px rgba(0,145,218,0.15)",
+        "card": "0 1px 2px rgba(0,51,141,0.06)",
+        "card-hover": "0 4px 16px rgba(0,51,141,0.08)",
+        "focus": "0 0 0 3px rgba(0,51,141,0.15)",
       },
       keyframes: {
         "fade-in-up": {

@@ -1,37 +1,70 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   Compliance Agent v2 — KPMG Design Tokens
+   Arial typography · KPMG Blue anchor · squared radii · hairline borders
+   ============================================================ */
 @layer base {
   :root {
+    /* KPMG Brand Palette */
     --kpmg-blue: #00338D;
+    --kpmg-medium-blue: #005EB8;
     --kpmg-light: #0091DA;
-    --kpmg-purple: #483698;
-    --kpmg-navy: #1A1A2E;
-    --kpmg-gray: #6D6E71;
-    --kpmg-light-gray: #F5F6F8;
-    --kpmg-border: #E8E9EB;
-    --kpmg-input-border: #D1D5DB;
-    --kpmg-placeholder: #A0A4A8;
-    --kpmg-hover-dark: #002266;
+    --kpmg-violet: #483698;
+    --kpmg-purple: #470A68;
+    --kpmg-green: #00A3A1;
+    --kpmg-navy: #00338D;
 
-    --status-success: #27AE60;
-    --status-warning: #E67E22;
-    --status-error: #C0392B;
+    /* Text */
+    --kpmg-fg-body: #1a1f2e;
+    --kpmg-gray: #3d4559;
+    --kpmg-gray-2: #6a7385;
+    --kpmg-placeholder: #9AA3B4;
 
-    --badge-aware: #C0392B;
-    --badge-adopter: #E67E22;
-    --badge-committed: #27AE60;
+    /* Surfaces */
+    --kpmg-light-gray: #F4F6FA;
+    --kpmg-card-bg: #eaeef4;
+
+    /* Borders */
+    --kpmg-border: #E4E8EF;
+    --kpmg-input-border: #D6DCE6;
+    --kpmg-border-strong: #BCC5D2;
+
+    --kpmg-hover-dark: #002b78;
+    --kpmg-hover-bg: #EAEEF4;
+
+    /* Semantic (brand-aligned where possible) */
+    --status-success: #00A3A1;    /* KPMG Teal Green */
+    --status-warning: #E37222;
+    --status-error: #C8102E;
+    --status-info: #0091DA;
+
+    /* Framework categorical */
+    --cat-1: #00338D;  /* NDI       — KPMG Blue */
+    --cat-2: #0091DA;  /* NAII      — Light Blue */
+    --cat-3: #005EB8;  /* QIYAS     — Medium Blue */
+    --cat-4: #470A68;  /* ITGF      — Purple */
+    --cat-5: #00A3A1;  /* AI_BADGES — Green */
+
+    --badge-aware: #C8102E;
+    --badge-adopter: #E37222;
+    --badge-committed: #00A3A1;
     --badge-trusted: #0091DA;
     --badge-leader: #00338D;
 
-    --shadow-card: 0 1px 3px rgba(0,0,0,0.06);
-    --shadow-card-hover: 0 4px 12px rgba(0,0,0,0.08);
-    --radius-card: 12px;
-    --radius-btn: 8px;
-    --radius-pill: 999px;
+    /* Sharper shadows, lower opacity */
+    --shadow-card: 0 1px 2px rgba(0,51,141,0.06);
+    --shadow-card-hover: 0 4px 16px rgba(0,51,141,0.08);
+
+    /* Squared radii (KPMG v2) */
+    --radius-card: 4px;
+    --radius-btn: 3px;
+    --radius-pill: 2px;
+
     --sidebar-width: 260px;
     --max-content: 1280px;
   }
@@ -41,23 +74,31 @@
   }
 
   body {
-    font-family: "DM Sans", "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
-    color: var(--kpmg-navy);
+    font-family: Arial, "Helvetica Neue", Helvetica, "Noto Sans Arabic", sans-serif;
+    color: var(--kpmg-fg-body);
     background-color: var(--kpmg-light-gray);
+    font-size: 13.5px;
+    line-height: 1.5;
+    letter-spacing: -0.01em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-variant-numeric: tabular-nums;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: "Plus Jakarta Sans", "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
+    font-family: Arial, "Helvetica Neue", Helvetica, "Noto Sans Arabic", sans-serif;
+    color: var(--kpmg-blue);
+    font-weight: 400;
+    letter-spacing: -0.015em;
   }
 
   [dir="rtl"] {
-    font-family: "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
+    font-family: "Noto Sans Arabic", Arial, sans-serif;
   }
 
   code, pre, .font-mono {
-    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-family: "Roboto Mono", "Courier New", Menlo, monospace;
+    font-variant-numeric: tabular-nums;
   }
 }
 

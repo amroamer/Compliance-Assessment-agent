@@ -46,7 +46,7 @@ const navSections = [
     ],
   },
   {
-    labelKey: "sidebar.dataManagement",
+    labelKey: "sidebar.directory",
     items: [
       { href: "/settings/assessed-entities", labelKey: "nav.assessedEntities", icon: Target, roles: ["admin"] },
       { href: "/settings/regulatory-entities", labelKey: "nav.regEntities", icon: Landmark, roles: ["admin"] },
@@ -71,13 +71,21 @@ export function Sidebar() {
       "fixed inset-y-0 z-30 flex flex-col bg-kpmg-navy",
       dir === "rtl" ? "right-0" : "left-0"
     )} style={{ width: "var(--sidebar-width)" }}>
-      {/* Logo Area */}
+      {/* Logo Area — KPMG squares + wordmark lockup */}
       <div className="px-6 pt-6 pb-4">
-        <p className="text-white font-heading font-bold text-2xl tracking-tight">KPMG</p>
-        <div className="h-[3px] w-10 bg-kpmg-light mt-1.5 rounded-full" />
+        <div className="flex items-center gap-2.5">
+          <div className="grid grid-cols-2 gap-[2px] p-[2px] bg-white">
+            <span className="w-2 h-2.5 bg-kpmg-blue" />
+            <span className="w-2 h-2.5 bg-kpmg-blue" />
+            <span className="w-2 h-2.5 bg-kpmg-blue" />
+            <span className="w-2 h-2.5 bg-kpmg-blue" />
+          </div>
+          <p className="text-white font-heading font-bold text-xl tracking-tight">KPMG</p>
+        </div>
+        <div className="h-[3px] w-10 bg-kpmg-light mt-3" />
         <div className="flex items-center gap-2 mt-3">
-          <Shield className="w-4 h-4 text-kpmg-light" />
-          <span className="text-white/80 text-sm font-body">{t("common.appName")}</span>
+          <Shield className="w-3.5 h-3.5 text-kpmg-light" />
+          <span className="text-white/80 text-xs font-body">{t("common.appName")}</span>
         </div>
       </div>
 
