@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "/app/uploads"
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:80", "http://localhost"]
 
+    OLLAMA_BASE_URL: str = "http://host.docker.internal:11434"
+
     class Config:
         env_file = ".env"
 

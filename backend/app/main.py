@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -237,12 +239,41 @@ async def _run_migrations(conn):
         ) WHERE current_phase_id IS NULL AND EXISTS (
             SELECT 1 FROM assessment_cycle_phases WHERE cycle_id = assessment_instances.cycle_id
         )""",
+        # Ollama-only cleanup: purge cloud-provider rows, then drop their columns.
+        # Safe to run repeatedly — DELETE matches 0 rows after the column is gone,
+        # and DROP COLUMN IF EXISTS is a no-op once the column is dropped.
+        """DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='llm_models' AND column_name='provider'
+            ) THEN
+                DELETE FROM llm_models WHERE provider IS NOT NULL AND provider <> 'ollama';
+            END IF;
+        END $$""",
+        "ALTER TABLE llm_models DROP COLUMN IF EXISTS provider",
+        "ALTER TABLE llm_models DROP COLUMN IF EXISTS api_key",
+        "ALTER TABLE llm_models DROP COLUMN IF EXISTS endpoint_url",
     ]
     for sql in migrations:
         try:
             await conn.execute(text(sql))
         except Exception:
             pass  # Column may already exist or table may not exist yet
+
+
+async def _ollama_bootstrap_loop():
+    """Run ensure_default() immediately, then every 5 minutes. Never blocks startup."""
+    from app.services.ollama_bootstrap import ensure_default_in_new_session
+    log = logging.getLogger("ollama_bootstrap")
+    while True:
+        try:
+            result = await ensure_default_in_new_session()
+            log.info(f"Ollama bootstrap: {result.get('status')} — {result.get('reason')} (model={result.get('model_id')})")
+        except Exception as e:
+            log.exception(f"Ollama bootstrap iteration failed: {e}")
+        await asyncio.sleep(300)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -257,7 +288,11 @@ async def lifespan(app: FastAPI):
     # await seed_compliance_frameworks()
     # await seed_node_types()
     # await seed_scales()
-    yield
+    bootstrap_task = asyncio.create_task(_ollama_bootstrap_loop())
+    try:
+        yield
+    finally:
+        bootstrap_task.cancel()
 
 
 app = FastAPI(title="Compliance Assessment Agent by KPMG", version="1.0.0", lifespan=lifespan)

@@ -14,12 +14,9 @@ class LlmModel(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    provider: Mapped[str] = mapped_column(String(20), nullable=False)  # ollama, openai, anthropic, azure_openai, custom
     model_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    endpoint_url: Mapped[str] = mapped_column(String(500), nullable=False)
-    api_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
     max_tokens: Mapped[int] = mapped_column(Integer, default=4096)
-    temperature: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal("0.10"))
+    temperature: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal("0.00"))
     context_window: Mapped[int] = mapped_column(Integer, default=8192)
     supports_documents: Mapped[bool] = mapped_column(Boolean, default=False)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)

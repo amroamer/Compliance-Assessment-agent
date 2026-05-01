@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.permissions import require_role
 from app.database import get_db
 from app.dependencies import get_current_user
@@ -18,6 +19,7 @@ from app.models.llm_model import LlmModel
 from app.models.ai_assessment_log import AiAssessmentLog
 from app.models.assessment_engine import AssessmentInstance, AssessmentResponse, AssessmentEvidence
 from app.models.user import User
+from app.services import ollama_bootstrap
 
 router = APIRouter(tags=["ai-assessment"])
 
@@ -25,22 +27,21 @@ router = APIRouter(tags=["ai-assessment"])
 # ============ LLM MODELS CRUD ============
 
 class LlmModelCreate(BaseModel):
-    name: str; provider: str; model_id: str; endpoint_url: str
-    api_key: str | None = None; max_tokens: int = 4096; temperature: float = 0.1
-    context_window: int = 8192; supports_documents: bool = False
-    is_default: bool = False; description: str | None = None
+    name: str
+    model_id: str
+    max_tokens: int = 4096
+    temperature: float = 0.0
+    context_window: int = 8192
+    supports_documents: bool = False
+    is_default: bool = False
+    description: str | None = None
 
 class BulkDeleteModelsRequest(BaseModel):
     ids: list[uuid.UUID]
 
-def _mask_key(key: str | None) -> str | None:
-    if not key: return None
-    return "****" + key[-4:] if len(key) > 4 else "****"
-
 def _model_resp(m: LlmModel) -> dict:
     return {
-        "id": str(m.id), "name": m.name, "provider": m.provider, "model_id": m.model_id,
-        "endpoint_url": m.endpoint_url, "api_key_masked": _mask_key(m.api_key),
+        "id": str(m.id), "name": m.name, "provider": "ollama", "model_id": m.model_id,
         "max_tokens": m.max_tokens, "temperature": float(m.temperature),
         "context_window": m.context_window, "supports_documents": m.supports_documents,
         "is_default": m.is_default, "is_active": m.is_active, "description": m.description,
@@ -63,11 +64,11 @@ async def export_models_excel(db: AsyncSession = Depends(get_db), current_user: 
     wb = Workbook()
     ws = wb.active
     ws.title = "LLM Models"
-    headers = ["name", "provider", "model_id", "endpoint_url", "max_tokens", "temperature", "context_window", "supports_documents", "is_default", "description"]
+    headers = ["name", "model_id", "max_tokens", "temperature", "context_window", "supports_documents", "is_default", "description"]
     for i, h in enumerate(headers, 1):
         ws.cell(row=1, column=i, value=h)
     for row_idx, m in enumerate(models, 2):
-        vals = [m.name, m.provider, m.model_id, m.endpoint_url, m.max_tokens, float(m.temperature), m.context_window, m.supports_documents, m.is_default, m.description]
+        vals = [m.name, m.model_id, m.max_tokens, float(m.temperature), m.context_window, m.supports_documents, m.is_default, m.description]
         for i, v in enumerate(vals, 1):
             ws.cell(row=row_idx, column=i, value=v)
     buf = BytesIO()
@@ -104,22 +105,18 @@ async def import_models_excel(file: UploadFile = File(...), preview: bool = Fals
     if preview:
         return {
             "total_in_file": len(rows),
-            "new_items": [{"name": r["name"], "provider": r.get("provider", ""), "model_id": r.get("model_id", "")} for r in new_rows],
+            "new_items": [{"name": r["name"], "model_id": r.get("model_id", "")} for r in new_rows],
             "duplicates": [{"name": r["name"]} for r in dup_rows],
             "will_import": len(new_rows),
             "will_skip": len(dup_rows),
         }
-    VALID_PROVIDERS = {"ollama", "openai", "anthropic", "azure_openai", "custom"}
     created = 0
     for r in new_rows:
-        provider = r.get("provider", "custom")
-        if provider not in VALID_PROVIDERS:
-            provider = "custom"
         m = LlmModel(
-            name=r["name"], provider=provider,
-            model_id=r.get("model_id") or "", endpoint_url=r.get("endpoint_url") or "",
+            name=r["name"],
+            model_id=r.get("model_id") or "",
             max_tokens=int(r.get("max_tokens") or 4096),
-            temperature=Decimal(str(r.get("temperature") or 0.1)),
+            temperature=Decimal(str(r.get("temperature") or 0.0)),
             context_window=int(r.get("context_window") or 8192),
             supports_documents=bool(r.get("supports_documents")),
             is_default=bool(r.get("is_default")),
@@ -168,10 +165,12 @@ async def get_model(model_id: uuid.UUID, db: AsyncSession = Depends(get_db), cur
 async def create_model(data: LlmModelCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     if data.is_default:
         await db.execute(update(LlmModel).values(is_default=False))
-    m = LlmModel(name=data.name, provider=data.provider, model_id=data.model_id, endpoint_url=data.endpoint_url,
-        api_key=data.api_key, max_tokens=data.max_tokens, temperature=Decimal(str(data.temperature)),
+    m = LlmModel(
+        name=data.name, model_id=data.model_id,
+        max_tokens=data.max_tokens, temperature=Decimal(str(data.temperature)),
         context_window=data.context_window, supports_documents=data.supports_documents,
-        is_default=data.is_default, description=data.description)
+        is_default=data.is_default, description=data.description,
+    )
     db.add(m); await db.flush(); await db.refresh(m)
     return _model_resp(m)
 
@@ -182,7 +181,6 @@ async def update_model(model_id: uuid.UUID, data: LlmModelCreate, db: AsyncSessi
     if data.is_default and not m.is_default:
         await db.execute(update(LlmModel).where(LlmModel.id != model_id).values(is_default=False))
     for k, v in data.model_dump(exclude_unset=True).items():
-        if k == "api_key" and not v: continue  # keep existing key if empty
         if k == "temperature": v = Decimal(str(v))
         setattr(m, k, v)
     await db.flush(); await db.refresh(m)
@@ -194,34 +192,48 @@ async def delete_model(model_id: uuid.UUID, db: AsyncSession = Depends(get_db), 
     if not m: raise HTTPException(404, "Model not found")
     m.is_active = False; await db.flush()
 
-@router.post("/api/settings/llm-models/test-config")
-async def test_model_config(data: LlmModelCreate, current_user: User = Depends(require_role("admin"))):
-    """Test a model configuration without saving it."""
-    temp = LlmModel(
-        provider=data.provider, model_id=data.model_id, endpoint_url=data.endpoint_url,
-        api_key=data.api_key or None, max_tokens=data.max_tokens, temperature=data.temperature,
-    )
-    start = time.time()
-    try:
-        response_text = await _call_llm(temp, "You are a test assistant.", "Say 'Hello, I am working correctly.' in exactly those words.")
-        elapsed = int((time.time() - start) * 1000)
-        return {"success": True, "response": response_text[:200], "response_time_ms": elapsed}
-    except Exception as e:
-        return {"success": False, "error": str(e), "response_time_ms": int((time.time() - start) * 1000)}
-
 @router.post("/api/settings/llm-models/{model_id}/test")
 async def test_model(model_id: uuid.UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
     m = (await db.execute(select(LlmModel).where(LlmModel.id == model_id))).scalar_one_or_none()
     if not m: raise HTTPException(404, "Model not found")
     start = time.time()
     try:
-        response_text = await _call_llm(m, "You are a test assistant.", "Say 'Hello, I am working correctly.' in exactly those words.")
+        response_text = await _call_llm(m, "You are a test assistant.", "Say 'Hello, I am working correctly.' in exactly those words.", force_deterministic=True)
         elapsed = int((time.time() - start) * 1000)
         m.last_tested_at = datetime.now(timezone.utc)
         await db.flush()
         return {"success": True, "response": response_text[:200], "response_time_ms": elapsed}
     except Exception as e:
         return {"success": False, "error": str(e), "response_time_ms": int((time.time() - start) * 1000)}
+
+
+# ============ OLLAMA DISCOVERY + AUTO-SETUP ============
+
+@router.get("/api/settings/ollama/models")
+async def list_installed_ollama_models(current_user: User = Depends(get_current_user)):
+    """Return models currently pulled into the host's Ollama instance."""
+    models = await ollama_bootstrap.list_ollama_models()
+    return [
+        {
+            "name": m.get("name"),
+            "size_gb": round((m.get("size") or 0) / (1024 ** 3), 2),
+            "modified_at": m.get("modified_at"),
+        }
+        for m in models if m.get("name")
+    ]
+
+@router.get("/api/settings/ollama/status")
+async def ollama_status(current_user: User = Depends(get_current_user)):
+    """Reachability + default-model health, for the UI status banner."""
+    return {
+        **ollama_bootstrap.get_status(),
+        "base_url": settings.OLLAMA_BASE_URL,
+    }
+
+@router.post("/api/settings/llm-models/auto-setup")
+async def trigger_auto_setup(db: AsyncSession = Depends(get_db), current_user: User = Depends(require_role("admin"))):
+    """Manually trigger the Ollama auto-setup flow (same logic as startup)."""
+    return await ollama_bootstrap.ensure_default(db)
 
 
 # ============ AI ASSESSMENT ENDPOINTS ============
@@ -253,7 +265,8 @@ async def assess_node(inst_id: uuid.UUID, node_id: uuid.UUID, data: AssessReques
     raw_response = None
     parsed = None
     try:
-        raw_response = await _call_llm(model, system_prompt, user_prompt)
+        # Document assessment MUST run at temperature=0 for reproducibility.
+        raw_response = await _call_llm(model, system_prompt, user_prompt, force_deterministic=True)
         parsed = _parse_suggestion(raw_response)
     except Exception as e:
         error_msg = str(e)
@@ -372,52 +385,33 @@ async def dismiss_suggestion(inst_id: uuid.UUID, node_id: uuid.UUID, db: AsyncSe
 
 # ============ LLM CALL HELPER ============
 
-async def _call_llm(model: LlmModel, system_prompt: str, user_prompt: str) -> str:
-    """Call an LLM based on provider config."""
-    headers = {"Content-Type": "application/json"}
-    if model.api_key:
-        if model.provider == "anthropic":
-            headers["x-api-key"] = model.api_key
-            headers["anthropic-version"] = "2023-06-01"
-        else:
-            headers["Authorization"] = f"Bearer {model.api_key}"
+async def _call_llm(
+    model: LlmModel,
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    force_deterministic: bool,
+) -> str:
+    """Call Ollama. `force_deterministic=True` pins temperature=0 regardless of the DB row.
 
-    if model.provider == "ollama":
-        payload = {
-            "model": model.model_id,
-            "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            "stream": False,
-            "options": {"temperature": float(model.temperature)},
-        }
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(model.endpoint_url, json=payload, headers=headers)
-            resp.raise_for_status()
-            return resp.json()["message"]["content"]
-
-    elif model.provider == "anthropic":
-        payload = {
-            "model": model.model_id,
-            "system": system_prompt,
-            "messages": [{"role": "user", "content": user_prompt}],
-            "temperature": float(model.temperature),
-            "max_tokens": model.max_tokens,
-        }
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(model.endpoint_url, json=payload, headers=headers)
-            resp.raise_for_status()
-            return resp.json()["content"][0]["text"]
-
-    else:  # openai, azure_openai, custom — all OpenAI-compatible
-        payload = {
-            "model": model.model_id,
-            "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            "temperature": float(model.temperature),
-            "max_tokens": model.max_tokens,
-        }
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(model.endpoint_url, json=payload, headers=headers)
-            resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]["content"]
+    Always pass `force_deterministic=True` for document-assessment paths — that
+    is the only way results are reproducible against acceptance criteria.
+    """
+    temperature = 0.0 if force_deterministic else float(model.temperature or 0)
+    endpoint = f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/chat"
+    payload = {
+        "model": model.model_id,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "stream": False,
+        "options": {"temperature": temperature},
+    }
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.post(endpoint, json=payload, headers={"Content-Type": "application/json"})
+        resp.raise_for_status()
+        return resp.json()["message"]["content"]
 
 
 def _parse_suggestion(raw: str) -> dict:
