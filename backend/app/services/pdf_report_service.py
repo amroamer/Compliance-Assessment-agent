@@ -1,4 +1,6 @@
 """Dynamic PDF Report Generator for all compliance frameworks."""
+import os
+import re
 import uuid
 from io import BytesIO
 from datetime import datetime
@@ -14,6 +16,50 @@ from reportlab.platypus import (
 )
 from reportlab.graphics.shapes import Drawing, Rect, String, Circle
 from reportlab.graphics.charts.piecharts import Pie
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase.pdfmetrics import registerFontFamily
+
+import arabic_reshaper
+from bidi.algorithm import get_display
+
+# ── Font registration (DejaVu Sans — has Arabic glyphs, installed via fonts-dejavu-core) ──
+FONT_NAME = "Helvetica"
+FONT_NAME_BOLD = "Helvetica-Bold"
+
+_DEJAVU_CANDIDATES = [
+    ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+    ("/usr/share/fonts/TTF/DejaVuSans.ttf",
+     "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf"),
+]
+for _reg, _bold in _DEJAVU_CANDIDATES:
+    if os.path.exists(_reg) and os.path.exists(_bold):
+        try:
+            pdfmetrics.registerFont(TTFont("DejaVuSans", _reg))
+            pdfmetrics.registerFont(TTFont("DejaVuSans-Bold", _bold))
+            registerFontFamily("DejaVuSans", normal="DejaVuSans", bold="DejaVuSans-Bold",
+                               italic="DejaVuSans", boldItalic="DejaVuSans-Bold")
+            FONT_NAME = "DejaVuSans"
+            FONT_NAME_BOLD = "DejaVuSans-Bold"
+        except Exception:
+            pass
+        break
+
+_ARABIC_RE = re.compile(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]")
+
+
+def _ar(text):
+    """Reshape + bidi-reorder Arabic so it renders correctly in ReportLab.
+
+    Safe to call on pure Latin strings (returned unchanged). Handles None.
+    """
+    if not text:
+        return text
+    s = str(text)
+    if not _ARABIC_RE.search(s):
+        return s
+    return get_display(arabic_reshaper.reshape(s))
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,42 +93,42 @@ def _get_styles():
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(
         "KPMGTitle", parent=styles["Title"],
-        fontName="Helvetica-Bold", fontSize=22, textColor=KPMG_NAVY,
+        fontName=FONT_NAME_BOLD, fontSize=22, textColor=KPMG_NAVY,
         spaceAfter=6, alignment=TA_LEFT,
     ))
     styles.add(ParagraphStyle(
         "KPMGSubtitle", parent=styles["Normal"],
-        fontName="Helvetica", fontSize=12, textColor=KPMG_BLUE,
+        fontName=FONT_NAME, fontSize=12, textColor=KPMG_BLUE,
         spaceAfter=12, alignment=TA_LEFT,
     ))
     styles.add(ParagraphStyle(
         "SectionHeader", parent=styles["Heading1"],
-        fontName="Helvetica-Bold", fontSize=14, textColor=KPMG_NAVY,
+        fontName=FONT_NAME_BOLD, fontSize=14, textColor=KPMG_NAVY,
         spaceBefore=16, spaceAfter=8,
     ))
     styles.add(ParagraphStyle(
         "SubHeader", parent=styles["Heading2"],
-        fontName="Helvetica-Bold", fontSize=11, textColor=KPMG_BLUE,
+        fontName=FONT_NAME_BOLD, fontSize=11, textColor=KPMG_BLUE,
         spaceBefore=10, spaceAfter=4,
     ))
-    styles["BodyText"].fontName = "Helvetica"
+    styles["BodyText"].fontName = FONT_NAME
     styles["BodyText"].fontSize = 9
     styles["BodyText"].textColor = BLACK
     styles["BodyText"].spaceAfter = 4
     styles["BodyText"].leading = 12
     styles.add(ParagraphStyle(
         "SmallText", parent=styles["Normal"],
-        fontName="Helvetica", fontSize=7.5, textColor=BLACK,
+        fontName=FONT_NAME, fontSize=7.5, textColor=BLACK,
         leading=10,
     ))
     styles.add(ParagraphStyle(
         "CellText", parent=styles["Normal"],
-        fontName="Helvetica", fontSize=8, textColor=BLACK,
+        fontName=FONT_NAME, fontSize=8, textColor=BLACK,
         leading=10,
     ))
     styles.add(ParagraphStyle(
         "Footer", parent=styles["Normal"],
-        fontName="Helvetica", fontSize=7, textColor=GREY,
+        fontName=FONT_NAME, fontSize=7, textColor=GREY,
         alignment=TA_CENTER,
     ))
     return styles
@@ -123,7 +169,7 @@ def _build_pie_chart(data_dict, width=180, height=140):
     for i, k in enumerate(data_dict.keys()):
         pie.slices[i].fillColor = color_map.get(k, GREY)
         pie.slices[i].strokeWidth = 0.5
-    pie.slices.fontName = "Helvetica"
+    pie.slices.fontName = FONT_NAME
     pie.slices.fontSize = 7
     pie.sideLabels = True
     pie.sideLabelsOffset = 0.1
@@ -145,7 +191,7 @@ def _build_score_bar(compliant, semi, non_compliant, total, width=400, height=24
             drawing.add(Rect(x, bar_y, w, bar_h, fillColor=color, strokeColor=None))
             if w > 20:
                 drawing.add(String(x + w / 2, bar_y + 4, str(count),
-                                   fontName="Helvetica-Bold", fontSize=8,
+                                   fontName=FONT_NAME_BOLD, fontSize=8,
                                    fillColor=WHITE, textAnchor="middle"))
             x += w
     remaining = total - compliant - semi - non_compliant
@@ -163,17 +209,17 @@ def _header_footer(canvas, doc, entity_name, framework_name):
     canvas.setStrokeColor(KPMG_NAVY)
     canvas.setLineWidth(2)
     canvas.line(15 * mm, A4[1] - 12 * mm, A4[0] - 15 * mm, A4[1] - 12 * mm)
-    canvas.setFont("Helvetica-Bold", 8)
+    canvas.setFont(FONT_NAME_BOLD, 8)
     canvas.setFillColor(KPMG_NAVY)
     canvas.drawString(15 * mm, A4[1] - 10 * mm, "KPMG — Compliance Assessment Report")
-    canvas.setFont("Helvetica", 7)
+    canvas.setFont(FONT_NAME, 7)
     canvas.setFillColor(GREY)
-    canvas.drawRightString(A4[0] - 15 * mm, A4[1] - 10 * mm, f"{entity_name} | {framework_name}")
+    canvas.drawRightString(A4[0] - 15 * mm, A4[1] - 10 * mm, _ar(f"{entity_name} | {framework_name}"))
     # Footer
     canvas.setStrokeColor(KPMG_NAVY)
     canvas.setLineWidth(1)
     canvas.line(15 * mm, 14 * mm, A4[0] - 15 * mm, 14 * mm)
-    canvas.setFont("Helvetica", 7)
+    canvas.setFont(FONT_NAME, 7)
     canvas.setFillColor(GREY)
     canvas.drawString(15 * mm, 9 * mm, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     canvas.drawRightString(A4[0] - 15 * mm, 9 * mm, f"Page {doc.page}")
@@ -276,14 +322,14 @@ async def generate_pdf_report(db: AsyncSession, instance_id: uuid.UUID) -> Bytes
     # ==================== COVER / TITLE ====================
     story.append(Spacer(1, 30))
     story.append(Paragraph("Compliance Assessment Report", styles["KPMGTitle"]))
-    story.append(Paragraph(f"{fw_name} ({fw_abbr})", styles["KPMGSubtitle"]))
+    story.append(Paragraph(_ar(f"{fw_name} ({fw_abbr})"), styles["KPMGSubtitle"]))
     story.append(HRFlowable(width="100%", thickness=2, color=KPMG_NAVY, spaceAfter=12))
 
     # Summary info table
     info_data = [
-        ["Entity", entity_name],
-        ["Framework", f"{fw_name} ({fw_abbr})"],
-        ["Assessment Cycle", cycle_name],
+        ["Entity", _ar(entity_name)],
+        ["Framework", _ar(f"{fw_name} ({fw_abbr})")],
+        ["Assessment Cycle", _ar(cycle_name)],
         ["Status", inst.status.replace("_", " ").title()],
         ["Report Date", datetime.now().strftime("%B %d, %Y")],
     ]
@@ -292,8 +338,8 @@ async def generate_pdf_report(db: AsyncSession, instance_id: uuid.UUID) -> Bytes
 
     info_table = Table(info_data, colWidths=[120, 360])
     info_table.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-        ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+        ("FONTNAME", (0, 0), (0, -1), FONT_NAME_BOLD),
+        ("FONTNAME", (1, 0), (1, -1), FONT_NAME),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
         ("TEXTCOLOR", (0, 0), (0, -1), KPMG_NAVY),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
@@ -311,8 +357,8 @@ async def generate_pdf_report(db: AsyncSession, instance_id: uuid.UUID) -> Bytes
     pct_non = round((total_n / total_answered) * 100) if total_answered else 0
 
     summary_text = (
-        f"This report presents the results of the <b>{fw_name}</b> compliance assessment "
-        f"for <b>{entity_name}</b>. "
+        f"This report presents the results of the <b>{_ar(fw_name)}</b> compliance assessment "
+        f"for <b>{_ar(entity_name)}</b>. "
         f"Out of <b>{inst.total_assessable_nodes}</b> total assessable items, "
         f"<b>{total_answered}</b> have been evaluated. "
         f"The overall compliance rate is <b>{pct_compliant}%</b>."
@@ -332,7 +378,7 @@ async def generate_pdf_report(db: AsyncSession, instance_id: uuid.UUID) -> Bytes
 
     summary_table = Table(summary_data, colWidths=[160, 80, 80])
     summary_table.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 0), (-1, 0), FONT_NAME_BOLD),
         ("FONTSIZE", (0, 0), (-1, -1), 9),
         ("BACKGROUND", (0, 0), (-1, 0), KPMG_NAVY),
         ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
@@ -368,11 +414,11 @@ async def generate_pdf_report(db: AsyncSession, instance_id: uuid.UUID) -> Bytes
             pc, ps, pn, pp = _count_compliance(prod_resps)
             pt = pc + ps + pn
             pct = f"{round((pc / pt) * 100)}%" if pt else "0%"
-            prod_rows.append([prod.name, str(pc), str(ps), str(pn), str(pt), pct])
+            prod_rows.append([_ar(prod.name), str(pc), str(ps), str(pn), str(pt), pct])
 
         prod_table = Table(prod_rows, colWidths=[160, 70, 70, 70, 60, 60])
         prod_style = [
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, 0), (-1, 0), FONT_NAME_BOLD),
             ("FONTSIZE", (0, 0), (-1, -1), 9),
             ("BACKGROUND", (0, 0), (-1, 0), KPMG_NAVY),
             ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
@@ -416,7 +462,7 @@ async def generate_pdf_report(db: AsyncSession, instance_id: uuid.UUID) -> Bytes
         dpct = round((dc / dt) * 100) if dt else 0
 
         story.append(Paragraph(
-            f"<b>{top_node.reference_code or ''}</b> {top_node.name}",
+            f"<b>{top_node.reference_code or ''}</b> {_ar(top_node.name)}",
             styles["SubHeader"]
         ))
 
@@ -451,10 +497,10 @@ async def generate_pdf_report(db: AsyncSession, instance_id: uuid.UUID) -> Bytes
                         just = just[:97] + "..."
                     detail_rows.append([
                         Paragraph(node.reference_code or "", styles["CellText"]),
-                        Paragraph(node.name or "", styles["CellText"]),
-                        Paragraph(prod.name, styles["CellText"]),
+                        Paragraph(_ar(node.name or ""), styles["CellText"]),
+                        Paragraph(_ar(prod.name), styles["CellText"]),
                         Paragraph(r.computed_score_label or "Pending", styles["CellText"]),
-                        Paragraph(just, styles["CellText"]),
+                        Paragraph(_ar(just), styles["CellText"]),
                     ])
             else:
                 r = resp_map.get((node.id, None))
@@ -466,15 +512,15 @@ async def generate_pdf_report(db: AsyncSession, instance_id: uuid.UUID) -> Bytes
                     just = just[:117] + "..."
                 detail_rows.append([
                     Paragraph(node.reference_code or "", styles["CellText"]),
-                    Paragraph(node.name or "", styles["CellText"]),
+                    Paragraph(_ar(node.name or ""), styles["CellText"]),
                     Paragraph(r.computed_score_label or "Pending", styles["CellText"]),
-                    Paragraph(just, styles["CellText"]),
+                    Paragraph(_ar(just), styles["CellText"]),
                 ])
 
         if len(detail_rows) > 1:
             detail_table = Table(detail_rows, colWidths=col_widths, repeatRows=1)
             detail_style_rules = [
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 0), (-1, 0), FONT_NAME_BOLD),
                 ("FONTSIZE", (0, 0), (-1, 0), 8),
                 ("BACKGROUND", (0, 0), (-1, 0), KPMG_BLUE),
                 ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
@@ -540,17 +586,17 @@ async def generate_pdf_report(db: AsyncSession, instance_id: uuid.UUID) -> Bytes
                     rec = rec[:117] + "..."
                 row = [
                     Paragraph(r.node.reference_code or "", styles["CellText"]),
-                    Paragraph(r.node.name or "", styles["CellText"]),
+                    Paragraph(_ar(r.node.name or ""), styles["CellText"]),
                 ]
                 if has_products:
                     prod_name = products[r.ai_product_id].name if r.ai_product_id in products else ""
-                    row.append(Paragraph(prod_name, styles["CellText"]))
-                row.append(Paragraph(rec, styles["CellText"]))
+                    row.append(Paragraph(_ar(prod_name), styles["CellText"]))
+                row.append(Paragraph(_ar(rec), styles["CellText"]))
                 gap_rows.append(row)
 
             gap_table = Table(gap_rows, colWidths=gap_widths, repeatRows=1)
             gap_table.setStyle(TableStyle([
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 0), (-1, 0), FONT_NAME_BOLD),
                 ("FONTSIZE", (0, 0), (-1, 0), 8),
                 ("BACKGROUND", (0, 0), (-1, 0), RED),
                 ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
@@ -582,17 +628,17 @@ async def generate_pdf_report(db: AsyncSession, instance_id: uuid.UUID) -> Bytes
                     rec = rec[:117] + "..."
                 row = [
                     Paragraph(r.node.reference_code or "", styles["CellText"]),
-                    Paragraph(r.node.name or "", styles["CellText"]),
+                    Paragraph(_ar(r.node.name or ""), styles["CellText"]),
                 ]
                 if has_products:
                     prod_name = products[r.ai_product_id].name if r.ai_product_id in products else ""
-                    row.append(Paragraph(prod_name, styles["CellText"]))
-                row.append(Paragraph(rec, styles["CellText"]))
+                    row.append(Paragraph(_ar(prod_name), styles["CellText"]))
+                row.append(Paragraph(_ar(rec), styles["CellText"]))
                 gap_rows.append(row)
 
             gap_table = Table(gap_rows, colWidths=gap_widths, repeatRows=1)
             gap_table.setStyle(TableStyle([
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 0), (-1, 0), FONT_NAME_BOLD),
                 ("FONTSIZE", (0, 0), (-1, 0), 8),
                 ("BACKGROUND", (0, 0), (-1, 0), YELLOW),
                 ("TEXTCOLOR", (0, 0), (-1, 0), BLACK),
